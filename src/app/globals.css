@@ -360,6 +360,23 @@ input:focus {
 .clickable-row:hover td {
   color: var(--cyan);
 }
+.stats-hint {
+  font-size: 11px;
+  color: var(--ink-muted);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.clickable-row:hover .stats-hint {
+  opacity: 1;
+  color: var(--accent);
+}
+.stats-subhead {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-muted);
+  margin: 18px 0 8px;
+}
 
 /* ---- league layout ---- */
 .league {
@@ -581,6 +598,26 @@ input:focus {
   border: 1px solid color-mix(in srgb, var(--pos-color, var(--ink-muted)) 45%, transparent);
   color: var(--pos-color, var(--ink-2));
 }
+/* Position badge + team, used outside the card grid (e.g. the player-stats
+   modal, which shows one player at a time rather than a --pos-color card). */
+.player-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.pos-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--ink-2);
+}
 
 .player-card-price-row {
   display: flex;
@@ -738,6 +775,13 @@ input:focus {
     opacity: 1;
     transform: translateX(0);
   }
+}
+.ticker .entry.arb {
+  opacity: 0.6;
+  font-size: 11.5px;
+  font-style: italic;
+  border-left-color: rgba(140, 100, 220, 0.55);
+  color: var(--ink-2);
 }
 
 /* ---- leaderboard / portfolio ---- */

@@ -76,11 +76,12 @@ test("full match: history sampled per minute, settlement converts positions to c
   league.trade("bob", SALAH, -200); // bob shorts him
   league.sim!.runToCompletion();
 
+  const matchMins = league.sim!.matchMinutes;
   assert.equal(league.status, "settled");
-  assert.equal(events.length, 90);
+  assert.equal(events.length, matchMins);
   assert.ok(league.settlements);
   for (const p of league.fixture.players) {
-    assert.equal(league.history[p.id].length, 92); // kickoff + 90 minutes + settlement
+    assert.equal(league.history[p.id].length, matchMins + 2); // kickoff + N minutes + settlement
   }
   // Positions are gone; all value is cash; leaderboard is consistent.
   for (const user of league.users.values()) assert.equal(user.positions.size, 0);

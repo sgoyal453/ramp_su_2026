@@ -47,6 +47,15 @@ export interface MatchEventDTO {
   isArbitrageur?: true;
 }
 
+export interface PlayerStatsDTO {
+  /** cumulative performance points accrued from match events so far */
+  points: number;
+  /** event type -> how many times it has happened to this player */
+  events: Record<string, number>;
+  /** projected settlement price ($) if the match ended now */
+  projectedSettlement: number;
+}
+
 export interface LeaderboardEntryDTO {
   username: string;
   cash: number;
@@ -94,6 +103,8 @@ export interface LeagueStateDTO {
   score: Record<string, number>;
   ticker: MatchEventDTO[];
   leaderboard: LeaderboardEntryDTO[];
+  /** playerId -> aggregated match performance stats */
+  playerStats: Record<string, PlayerStatsDTO>;
   /** playerId -> settlement price ($), present once settled */
   settlements: Record<string, number> | null;
   /** the requesting user's own portfolio */
