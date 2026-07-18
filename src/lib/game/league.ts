@@ -14,10 +14,18 @@
 
 import { createLeagueMarkets, type PlayerMarket } from "../engine/playerMarket";
 import { HistoricalMatchReplay, type ReplayEvent, type ReplayFullTime } from "../engine/historicalReplay";
+import { normalizeScore } from "../engine/matchSimulator";
 import { runArbitrageur } from "../engine/arbitrageurAgent";
 import { getFixture } from "../fixtures/load";
 import type { FixtureSnapshot } from "../fixtures/types";
-import type { LeagueStateDTO, LeagueStatus, MatchEventDTO, LeaderboardEntryDTO, FixtureMetaDTO } from "../types";
+import type {
+  LeagueStateDTO,
+  LeagueStatus,
+  MatchEventDTO,
+  LeaderboardEntryDTO,
+  FixtureMetaDTO,
+  PlayerStatsDTO,
+} from "../types";
 
 export const MAX_USERS = 20;
 export const DEFAULT_STARTING_CASH = 100_000;
@@ -280,6 +288,26 @@ export class League {
     return value;
   }
 
+  /**
+   * Per-player match performance, aggregated from the simulator's full event
+   * log (not the capped ticker, so counts stay accurate over a whole match).
+   * Before kickoff every player has zero stats.
+   */
+  playerStats(): Record<string, PlayerStatsDTO> {
+    const stats: Record<string, PlayerStatsDTO> = {};
+    for (const p of this.fixture.players) stats[p.id] = { points: 0, events: {}, projectedSettlement: 0 };
+    for (const ev of this.sim?.eventLog ?? []) {
+      const s = stats[ev.playerId];
+      if (!s) continue;
+      s.points += ev.points;
+      s.events[ev.type] = (s.events[ev.type] ?? 0) + 1;
+    }
+    for (const p of this.fixture.players) {
+      stats[p.id].projectedSettlement = normalizeScore(stats[p.id].points) * this.markets.get(p.id)!.priceScale;
+    }
+    return stats;
+  }
+
   leaderboard(): LeaderboardEntryDTO[] {
     return [...this.users.values()]
       .map((u) => ({
@@ -338,6 +366,7 @@ export class League {
       score: this.score,
       ticker: this.ticker,
       leaderboard: this.leaderboard(),
+      playerStats: this.playerStats(),
       settlements: this.settlements,
       you: account
         ? {

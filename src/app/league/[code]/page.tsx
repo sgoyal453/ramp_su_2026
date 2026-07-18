@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkline } from "@/components/Sparkline";
-import type { LeagueStateDTO, MatchEventDTO, ServerMessage } from "@/lib/types";
+import type { LeagueStateDTO, MatchEventDTO, PlayerStatsDTO, ServerMessage } from "@/lib/types";
 
 const QTY_CHOICES = [10, 25, 50, 100, 250];
 const USERNAME = "Sarvagya";
@@ -16,6 +16,7 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
   const [state, setState] = useState<LeagueStateDTO | null>(null);
   const [qty, setQty] = useState(25);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [statsFor, setStatsFor] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -152,9 +153,16 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
                     const delta = price - kickoff;
                     const position = you?.positions[p.id] ?? 0;
                     return (
-                      <tr key={p.id}>
+                      <tr
+                        key={p.id}
+                        className="clickable-row"
+                        onClick={() => setStatsFor(p.id)}
+                        title={`View ${p.name}'s stats`}
+                      >
                         <td>
-                          <div className="player-name">{p.name}</div>
+                          <div className="player-name">
+                            {p.name} <span className="stats-hint">stats ›</span>
+                          </div>
                           <div className="player-meta">
                             <span className="pos-badge">{p.position}</span>
                             {p.team}
@@ -175,10 +183,22 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
                         ) : (
                           <td>
                             <div className="trade-buttons">
-                              <button className="buy" onClick={() => trade(p.id, qty)}>
+                              <button
+                                className="buy"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  trade(p.id, qty);
+                                }}
+                              >
                                 Buy
                               </button>
-                              <button className="sell" onClick={() => trade(p.id, -qty)}>
+                              <button
+                                className="sell"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  trade(p.id, -qty);
+                                }}
+                              >
                                 Sell
                               </button>
                             </div>
@@ -282,7 +302,144 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
           onClose={() => setViewing(null)}
         />
       )}
+
+      {statsFor &&
+        (() => {
+          const player = state.players.find((p) => p.id === statsFor);
+          if (!player) return null;
+          return (
+            <PlayerStatsModal
+              player={player}
+              price={state.prices[statsFor]}
+              history={state.history[statsFor] ?? []}
+              stats={state.playerStats?.[statsFor]}
+              settlement={state.settlements?.[statsFor] ?? null}
+              status={state.status}
+              yourShares={you?.positions[statsFor] ?? 0}
+              onClose={() => setStatsFor(null)}
+            />
+          );
+        })()}
     </main>
+  );
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  GOAL: "Goals",
+  PENALTY_GOAL: "Penalty goals",
+  OWN_GOAL: "Own goals",
+  ASSIST: "Assists",
+  YELLOW_CARD: "Yellow cards",
+  SECOND_YELLOW: "Second yellows",
+  RED_CARD: "Red cards",
+  SUBSTITUTION: "Substitutions",
+  PENALTY_SAVE: "Penalty saves",
+};
+
+function PlayerStatsModal({
+  player,
+  price,
+  history,
+  stats,
+  settlement,
+  status,
+  yourShares,
+  onClose,
+}: {
+  player: LeagueStateDTO["players"][number];
+  price: number;
+  history: number[];
+  stats: PlayerStatsDTO | undefined;
+  settlement: number | null;
+  status: LeagueStateDTO["status"];
+  yourShares: number;
+  onClose: () => void;
+}) {
+  const kickoff = history[0] ?? 50;
+  const delta = price - kickoff;
+  const pct = kickoff !== 0 ? (delta / kickoff) * 100 : 0;
+  const flat = Math.abs(delta) < 0.005;
+  const high = history.length ? Math.max(...history) : price;
+  const low = history.length ? Math.min(...history) : price;
+  const eventRows = Object.entries(stats?.events ?? {}).sort((a, b) => b[1] - a[1]);
+  const deltaClass = flat ? "muted" : delta > 0 ? "up" : "down";
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-top">
+          <h2>{player.name}</h2>
+          <span className={`badge ${status}`}>{status}</span>
+        </div>
+        <div className="player-meta" style={{ marginBottom: 12 }}>
+          <span className="pos-badge">{player.position}</span>
+          {player.team}
+        </div>
+
+        <div className="big-value">${fmt(price)}</div>
+        <p className="muted" style={{ margin: "2px 0 12px" }}>
+          <span className={deltaClass}>
+            {flat ? "·" : delta > 0 ? "▲" : "▼"} ${fmt(Math.abs(delta))} ({fmt(Math.abs(pct), 1)}%)
+          </span>{" "}
+          since kickoff
+        </p>
+
+        <div style={{ margin: "0 0 14px" }}>
+          <Sparkline data={history} width={360} height={64} />
+        </div>
+
+        <table className="plain">
+          <tbody>
+            <tr>
+              <td className="muted">Session high</td>
+              <td className="num">${fmt(high)}</td>
+            </tr>
+            <tr>
+              <td className="muted">Session low</td>
+              <td className="num">${fmt(low)}</td>
+            </tr>
+            <tr>
+              <td className="muted">Your position</td>
+              <td className={`num ${yourShares < 0 ? "down" : ""}`}>
+                {yourShares !== 0 ? `${fmt(yourShares, 0)} shares` : "—"}
+              </td>
+            </tr>
+            <tr>
+              <td className="muted">Performance points</td>
+              <td className="num">{fmt(stats?.points ?? 0, 1)}</td>
+            </tr>
+            <tr>
+              <td className="muted">{status === "settled" ? "Settled at" : "Projected settlement"}</td>
+              <td className="num">
+                ${fmt(status === "settled" && settlement != null ? settlement : stats?.projectedSettlement ?? 0)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 className="stats-subhead">Match events</h3>
+        {eventRows.length > 0 ? (
+          <table className="plain">
+            <tbody>
+              {eventRows.map(([type, count]) => (
+                <tr key={type}>
+                  <td>{EVENT_LABELS[type] ?? type}</td>
+                  <td className="num">{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">
+            {status === "lobby" ? "No events yet — the match hasn't kicked off." : "No events for this player yet."}
+          </p>
+        )}
+
+        <button onClick={onClose} style={{ marginTop: 16 }}>
+          Close
+        </button>
+      </div>
+    </div>
   );
 }
 

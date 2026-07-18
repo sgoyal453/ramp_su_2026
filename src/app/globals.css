@@ -301,6 +301,23 @@ input:focus {
 .clickable-row:hover td {
   color: var(--accent);
 }
+.stats-hint {
+  font-size: 11px;
+  color: var(--ink-muted);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.clickable-row:hover .stats-hint {
+  opacity: 1;
+  color: var(--accent);
+}
+.stats-subhead {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-muted);
+  margin: 18px 0 8px;
+}
 
 /* ---- league layout ---- */
 .league {
