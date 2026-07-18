@@ -1,20 +1,30 @@
 /**
- * League: one private competition — a roster, one LMSR market per player,
- * user portfolios, a match simulator, and settlement.
+ * League: one private competition — the verified real fixture's roster, one
+ * LMSR market per player, user portfolios, a historical match replay, and
+ * settlement.
+ *
+ * Every league is built from the committed fixture snapshot (Argentina vs
+ * Egypt, 2026 World Cup Round of 16). There is no fictional roster and no
+ * hidden skill rating: every market opens at the same neutral price with the
+ * same liquidity, and only verified real events move prices between trades.
  *
  * The server layer owns broadcasting; League exposes hooks (onEvent/onMinute/
  * onFullTime) rather than talking to sockets itself, so it stays unit-testable.
  */
 
-import { createDefaultRoster, publicPlayer, type RosterPlayer } from "../engine/roster";
 import { createLeagueMarkets, type PlayerMarket } from "../engine/playerMarket";
-import { MatchSimulator, type MatchEvent, type FullTimeResult } from "../engine/matchSimulator";
-import type { LeagueStateDTO, LeagueStatus, MatchEventDTO, LeaderboardEntryDTO } from "../types";
+import { HistoricalMatchReplay, type ReplayEvent, type ReplayFullTime } from "../engine/historicalReplay";
+import { getFixture } from "../fixtures/load";
+import type { FixtureSnapshot } from "../fixtures/types";
+import type { LeagueStateDTO, LeagueStatus, MatchEventDTO, LeaderboardEntryDTO, FixtureMetaDTO } from "../types";
 
 export const MAX_USERS = 20;
 export const DEFAULT_STARTING_CASH = 100_000;
 export const MAX_TRADE_SHARES = 10_000;
 export const TICKER_LIMIT = 200;
+/** One uniform liquidity for every market: real players get no synthetic
+ *  "volatile rookie" / "steady veteran" differentiation. */
+export const DEFAULT_B = 150;
 
 export interface UserAccount {
   username: string;
@@ -23,9 +33,9 @@ export interface UserAccount {
 }
 
 export interface LeagueHooks {
-  onEvent?: (event: MatchEvent) => void;
+  onEvent?: (event: ReplayEvent) => void;
   onMinute?: (minute: number) => void;
-  onFullTime?: (result: FullTimeResult) => void;
+  onFullTime?: (result: ReplayFullTime) => void;
 }
 
 export interface LeagueOptions {
@@ -35,14 +45,19 @@ export interface LeagueOptions {
   /** Real-dollar equivalent of `buyIn` fake coins, e.g. 10 for "$10 = 1,000,000 coins". */
   buyInReal?: number;
   startingCash?: number;
-  /** Real-world duration of the compressed 90' match, in minutes. */
+  /** Real-world duration of the compressed replay, in minutes. */
   matchRealMinutes?: number;
-  seed?: number;
+  /**
+   * Verified fixture snapshot; defaults to the committed cached snapshot.
+   * Constructing a league is impossible without one — synthetic data is
+   * never substituted.
+   */
+  fixture?: FixtureSnapshot;
   /** Competition this league represents, e.g. "World Cup 2026". */
   seasonLabel?: string;
   /** Human-readable date range the league runs over, e.g. "Jun 11 – Jul 19, 2026". */
   windowLabel?: string;
-  /** Label for the currently-live fixture, e.g. "Final · FC Falcon vs United Wolves". */
+  /** Label for the fixture; defaults to the real match, e.g. "Round of 16 · Argentina vs Egypt". */
   matchLabel?: string;
 }
 
@@ -53,15 +68,14 @@ export class League {
   readonly buyInReal: number;
   readonly startingCash: number;
   readonly matchRealMinutes: number;
-  readonly seed: number;
+  readonly fixture: FixtureSnapshot;
   readonly seasonLabel: string;
   readonly windowLabel: string;
   readonly matchLabel: string;
-  readonly players: RosterPlayer[];
   readonly markets: Map<string, PlayerMarket>;
   readonly users = new Map<string, UserAccount>();
   status: LeagueStatus = "lobby";
-  sim: MatchSimulator | null = null;
+  sim: HistoricalMatchReplay | null = null;
   ticker: MatchEventDTO[] = [];
   history: Record<string, number[]> = {};
   minute = 0;
@@ -75,7 +89,7 @@ export class League {
     buyInReal = 10,
     startingCash = DEFAULT_STARTING_CASH,
     matchRealMinutes = 10,
-    seed,
+    fixture,
     seasonLabel = "",
     windowLabel = "",
     matchLabel = "",
@@ -86,19 +100,20 @@ export class League {
     this.buyInReal = buyInReal;
     this.startingCash = startingCash;
     this.matchRealMinutes = matchRealMinutes;
+    // Throws when the committed snapshot is missing or invalid — a league can
+    // never exist without a verified real fixture.
+    this.fixture = fixture ?? getFixture();
     this.seasonLabel = seasonLabel;
     this.windowLabel = windowLabel;
-    this.matchLabel = matchLabel;
-    this.seed = seed ?? Math.floor(Math.random() * 2 ** 31);
-    this.players = createDefaultRoster();
+    this.matchLabel = matchLabel || `${this.fixture.stage} · ${this.fixture.homeTeam} vs ${this.fixture.awayTeam}`;
     this.markets = createLeagueMarkets(
-      this.players.map(({ id, b, initialQ }) => ({ id, b, initialQ })),
+      this.fixture.players.map(({ id }) => ({ id })),
+      { b: DEFAULT_B },
     );
-    for (const p of this.players) {
+    for (const p of this.fixture.players) {
       this.history[p.id] = [this.markets.get(p.id)!.price()];
-      this.score = {};
     }
-    for (const team of new Set(this.players.map((p) => p.team))) this.score[team] = 0;
+    this.score = { [this.fixture.homeTeam]: 0, [this.fixture.awayTeam]: 0 };
     this.addUser(host);
   }
 
@@ -121,7 +136,7 @@ export class League {
   seedBotUser(username: string, cash: number, positions: Record<string, number> = {}): void {
     const account = this.addUser(username);
     account.cash = cash;
-    account.positions = new Map(Object.entries(positions));
+    account.positions = new Map(Object.entries(positions).filter(([id]) => this.markets.has(id)));
   }
 
   /** Preview the dollar cost of a trade without executing it. */
@@ -164,22 +179,21 @@ export class League {
   }
 
   /**
-   * Kick off the simulated match. Host only; lobby only.
-   * `fastForwardMinutes` instantly replays that many simulated minutes
-   * before the live clock starts, so the league can open already "in
-   * progress" (used to make a demo league feel live from the first load).
+   * Kick off the historical replay. Host only; lobby only.
+   * `fastForwardMinutes` instantly replays that many match minutes (events
+   * fire, markets move, history fills) before the live clock starts, so a
+   * league can open already "in progress" for a demo.
    */
   start(username: string, hooks: LeagueHooks = {}, fastForwardMinutes = 0): void {
     if (username !== this.host) throw new Error("only the host can start the match");
     if (this.status !== "lobby") throw new Error(`match already ${this.status}`);
     this.status = "live";
-    this.sim = new MatchSimulator({
-      players: this.players,
+    this.sim = new HistoricalMatchReplay({
+      fixture: this.fixture,
       markets: this.markets,
-      seed: this.seed,
       realDurationMs: this.matchRealMinutes * 60_000,
     });
-    this.sim.on("event", (event: MatchEvent) => {
+    this.sim.on("event", (event: ReplayEvent) => {
       this.ticker.unshift(event);
       if (this.ticker.length > TICKER_LIMIT) this.ticker.pop();
       this.score = Object.fromEntries(this.sim!.goals);
@@ -187,10 +201,10 @@ export class League {
     });
     this.sim.on("minute", ({ minute }: { minute: number }) => {
       this.minute = minute;
-      for (const p of this.players) this.history[p.id].push(this.markets.get(p.id)!.price());
+      for (const p of this.fixture.players) this.history[p.id].push(this.markets.get(p.id)!.price());
       hooks.onMinute?.(minute);
     });
-    this.sim.on("fulltime", (result: FullTimeResult) => {
+    this.sim.on("fulltime", (result: ReplayFullTime) => {
       this.settle(result);
       hooks.onFullTime?.(result);
     });
@@ -225,6 +239,22 @@ export class League {
       .sort((a, b) => b.value - a.value);
   }
 
+  /** Client-safe fixture metadata: identifies the real match (with sources)
+   *  without leaking its events or outcome into the lobby. */
+  fixtureMeta(): FixtureMetaDTO {
+    return {
+      fixtureId: this.fixture.fixtureId,
+      competition: this.fixture.competition,
+      stage: this.fixture.stage,
+      dateUtc: this.fixture.dateUtc,
+      venue: this.fixture.venue,
+      city: this.fixture.city,
+      homeTeam: this.fixture.homeTeam,
+      awayTeam: this.fixture.awayTeam,
+      sources: this.fixture.sources.map((s) => s.url),
+    };
+  }
+
   /** Personalized snapshot for one user (or a spectator when username is null). */
   toDTO(username: string | null): LeagueStateDTO {
     const account = username ? this.users.get(username) : null;
@@ -237,13 +267,22 @@ export class League {
       seasonLabel: this.seasonLabel,
       windowLabel: this.windowLabel,
       matchLabel: this.matchLabel,
+      fixture: this.fixtureMeta(),
       host: this.host,
       users: [...this.users.keys()],
-      players: this.players.map(publicPlayer),
-      prices: Object.fromEntries(this.players.map((p) => [p.id, this.markets.get(p.id)!.price()])),
+      players: this.fixture.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        position: p.position,
+        b: DEFAULT_B,
+        shirt: p.shirt,
+        started: p.started,
+      })),
+      prices: Object.fromEntries(this.fixture.players.map((p) => [p.id, this.markets.get(p.id)!.price()])),
       history: this.history,
       minute: this.minute,
-      matchMinutes: this.sim?.matchMinutes ?? 90,
+      matchMinutes: this.sim?.matchMinutes ?? (this.fixture.wentToExtraTime ? 120 : 90),
       score: this.score,
       ticker: this.ticker,
       leaderboard: this.leaderboard(),
@@ -266,11 +305,11 @@ export class League {
   }
 
   /** Convert every open position to cash at settlement prices. */
-  private settle(result: FullTimeResult): void {
+  private settle(result: ReplayFullTime): void {
     this.status = "settled";
     this.minute = this.sim!.matchMinutes;
     this.settlements = Object.fromEntries(result.settlements);
-    for (const p of this.players) this.history[p.id].push(this.markets.get(p.id)!.price());
+    for (const p of this.fixture.players) this.history[p.id].push(this.markets.get(p.id)!.price());
     for (const account of this.users.values()) {
       for (const [playerId, shares] of account.positions) {
         account.cash += this.markets.get(playerId)!.payout(shares);
