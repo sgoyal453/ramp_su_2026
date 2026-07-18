@@ -94,6 +94,21 @@ export class PlayerMarket {
   }
 
   /**
+   * Liquidation ("mark-to-close") value of holding `shares` right now: the cash
+   * you would net by closing the position at the current state. For a long this
+   * is the sell proceeds; for a short it is negative (the buyback you owe).
+   *
+   * This is what a position is actually worth, unlike `shares * price()` which
+   * marks at the marginal price and overstates value by the LMSR spread — so a
+   * freshly opened position would otherwise show an instant phantom gain.
+   */
+  closeValue(shares: number): number {
+    if (shares === 0) return 0;
+    if (this.settled) return this.payout(shares);
+    return -this.quote(-shares);
+  }
+
+  /**
    * How many shares a dollar `spend` buys at the current state (spend > 0).
    * Use with trade() for "invest $X" style UI. Does not mutate.
    */

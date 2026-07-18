@@ -154,12 +154,17 @@ export class League {
     this.sim.start();
   }
 
-  /** Mark-to-market portfolio value: cash + Σ position × current price. */
+  /**
+   * Portfolio value: cash + liquidation value of every open position. Positions
+   * are marked at what closing them would net right now (not the marginal
+   * price), so opening a position is P&L-neutral and value only moves as the
+   * market does.
+   */
   portfolioValue(username: string): number {
     const account = this.userOrThrow(username);
     let value = account.cash;
     for (const [playerId, shares] of account.positions) {
-      value += shares * this.markets.get(playerId)!.price();
+      value += this.markets.get(playerId)!.closeValue(shares);
     }
     return value;
   }
@@ -194,6 +199,12 @@ export class League {
             username: account.username,
             cash: account.cash,
             positions: Object.fromEntries(account.positions),
+            positionValues: Object.fromEntries(
+              [...account.positions].map(([playerId, shares]) => [
+                playerId,
+                this.markets.get(playerId)!.closeValue(shares),
+              ]),
+            ),
             value: this.portfolioValue(account.username),
           }
         : null,

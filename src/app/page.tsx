@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function Home() {
   const router = useRouter();
@@ -67,11 +68,19 @@ export default function Home() {
 
   return (
     <main className="home">
-      <h1>⚽ Pitch Exchange</h1>
-      <p className="tagline">
-        Trade shares in soccer players, priced live by an LMSR market during a simulated match. Highest portfolio at
-        full time wins the league.
-      </p>
+      <div className="home-hero">
+        <div className="brand">
+          <BrandMark />
+          <span className="wordmark">Ticker</span>
+        </div>
+        <h1>
+          Trade the game, <span className="accent">live.</span>
+        </h1>
+        <p className="tagline">
+          A live stock market for sports. Buy, sell, and short players while a simulated match moves the market in real
+          time. Highest portfolio at the final whistle wins the league.
+        </p>
+      </div>
 
       <div className="card">
         <div className="field">
@@ -109,6 +118,8 @@ export default function Home() {
           Create league
         </button>
       </div>
+
+      <div className="divider">or</div>
 
       <div className="card">
         <h2>Join with an invite code</h2>
