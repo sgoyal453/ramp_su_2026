@@ -31,6 +31,8 @@ export interface LeaderboardEntryDTO {
   cash: number;
   /** cash + mark-to-market value of open positions */
   value: number;
+  /** playerId -> net shares (negative = short); visible to everyone for the demo */
+  positions: Record<string, number>;
 }
 
 export interface PortfolioDTO {
@@ -45,7 +47,15 @@ export interface LeagueStateDTO {
   code: string;
   status: LeagueStatus;
   buyIn: number;
+  /** real-dollar buy-in that `buyIn` fake coins represents, e.g. 10 for "$10 = 1,000,000 coins" */
+  buyInReal: number;
   startingCash: number;
+  /** e.g. "World Cup 2026" */
+  seasonLabel: string;
+  /** e.g. "Jun 11 – Jul 19, 2026" */
+  windowLabel: string;
+  /** e.g. "Final · FC Falcon vs United Wolves" */
+  matchLabel: string;
   host: string;
   users: string[];
   players: PublicPlayerDTO[];

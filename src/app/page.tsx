@@ -1,135 +1,90 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LEAGUE_CATALOG, type LeagueSummary } from "@/lib/leagues/catalog";
+
+const USERNAME = "Sarvagya";
 
 export default function Home() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [buyIn, setBuyIn] = useState(1000);
-  const [duration, setDuration] = useState(10);
-  const [joinCode, setJoinCode] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [active, setActive] = useState<LeagueSummary | null>(null);
 
-  useEffect(() => {
-    setUsername(localStorage.getItem("fsm-username") ?? "");
+  const sports = useMemo(() => {
+    const set = new Set(LEAGUE_CATALOG.map((l) => l.sport));
+    return ["All", ...set];
   }, []);
+  const [filter, setFilter] = useState("All");
+  const shown = filter === "All" ? LEAGUE_CATALOG : LEAGUE_CATALOG.filter((l) => l.sport === filter);
 
-  function saveName(): string | null {
-    const name = username.trim();
-    if (!name) {
-      setError("Pick a username first.");
-      return null;
+  function openLeague(league: LeagueSummary) {
+    if (league.joined && league.code) {
+      localStorage.setItem("fsm-username", USERNAME);
+      router.push(`/league/${league.code}`);
+    } else {
+      setActive(league);
     }
-    localStorage.setItem("fsm-username", name);
-    return name;
-  }
-
-  async function createLeague() {
-    const name = saveName();
-    if (!name) return;
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/league", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username: name, buyIn, matchRealMinutes: duration }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "failed to create league");
-      router.push(`/league/${body.code}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to create league");
-      setBusy(false);
-    }
-  }
-
-  async function joinLeague() {
-    const name = saveName();
-    if (!name) return;
-    const code = joinCode.trim().toUpperCase();
-    if (!code) {
-      setError("Enter an invite code.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    const res = await fetch(`/api/league/${code}`);
-    if (!res.ok) {
-      setError(`No league found with code ${code}.`);
-      setBusy(false);
-      return;
-    }
-    router.push(`/league/${code}`);
   }
 
   return (
-    <main className="home">
-      <h1>⚽ Pitch Exchange</h1>
-      <p className="tagline">
-        Trade shares in soccer players, priced live by an LMSR market during a simulated match. Highest portfolio at
-        full time wins the league.
-      </p>
-
-      <div className="card">
-        <div className="field">
-          <label htmlFor="username">Username</label>
-          <input
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="e.g. sid"
-            maxLength={24}
-          />
+    <main className="browse">
+      <header className="browse-header">
+        <div>
+          <h1>⚽ Pitch Exchange</h1>
+          <p className="tagline">Every league is one sport, priced live, over a fixed window. Browse what&rsquo;s out there.</p>
         </div>
-      </div>
-
-      <div className="card">
-        <h2>Create a league</h2>
-        <div className="row">
-          <div className="field">
-            <label htmlFor="buyin">Buy-in ($)</label>
-            <input id="buyin" type="number" min={1} value={buyIn} onChange={(e) => setBuyIn(Number(e.target.value))} />
-          </div>
-          <div className="field">
-            <label htmlFor="duration">Match length (real minutes)</label>
-            <input
-              id="duration"
-              type="number"
-              min={1}
-              max={30}
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-            />
-          </div>
+        <div className="me-badge">
+          Signed in as <strong>{USERNAME}</strong>
         </div>
-        <button className="primary" onClick={createLeague} disabled={busy}>
-          Create league
-        </button>
-      </div>
+      </header>
 
-      <div className="card">
-        <h2>Join with an invite code</h2>
-        <div className="row">
-          <div className="field">
-            <label htmlFor="code">Invite code</label>
-            <input
-              id="code"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              placeholder="e.g. XK4PQ2"
-              maxLength={6}
-            />
-          </div>
-          <button onClick={joinLeague} disabled={busy}>
-            Join league
+      <div className="sport-filters">
+        {sports.map((s) => (
+          <button key={s} className={`chip ${filter === s ? "active" : ""}`} onClick={() => setFilter(s)}>
+            {s}
           </button>
-        </div>
+        ))}
       </div>
 
-      {error && <p className="error-text">{error}</p>}
+      <div className="league-grid">
+        {shown.map((league) => (
+          <button key={league.id} className={`league-card ${league.joined ? "joined" : ""}`} onClick={() => openLeague(league)}>
+            <div className="league-card-top">
+              <span className="league-emoji">{league.emoji}</span>
+              <span className={`badge ${league.status === "live" ? "live" : ""}`}>{league.status}</span>
+            </div>
+            <div className="league-name">{league.name}</div>
+            <div className="league-sport muted">{league.sport}</div>
+            <div className="league-window muted">{league.windowLabel}</div>
+            <div className="league-card-bottom">
+              <span className="muted">{league.traders.toLocaleString()} traders</span>
+              <span className="muted">
+                ${league.buyInReal} = {league.buyInFake.toLocaleString()}
+              </span>
+            </div>
+            {league.joined && <div className="joined-tag">You&rsquo;re in this league →</div>}
+          </button>
+        ))}
+      </div>
+
+      {active && (
+        <div className="modal-backdrop" onClick={() => setActive(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-top">
+              <span className="league-emoji">{active.emoji}</span>
+              <span className={`badge ${active.status === "live" ? "live" : ""}`}>{active.status}</span>
+            </div>
+            <h2>{active.name}</h2>
+            <p className="muted">{active.sport} · {active.windowLabel}</p>
+            <p>{active.blurb}</p>
+            <p className="muted">
+              {active.traders.toLocaleString()} traders · ${active.buyInReal} buy-in = {active.buyInFake.toLocaleString()} coins
+            </p>
+            <p className="not-joined">You&rsquo;re not in this league yet — {USERNAME} is only trading World Cup 2026.</p>
+            <button onClick={() => setActive(null)}>Close</button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

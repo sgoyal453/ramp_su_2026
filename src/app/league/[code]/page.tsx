@@ -5,24 +5,21 @@ import { Sparkline } from "@/components/Sparkline";
 import type { LeagueStateDTO, MatchEventDTO, ServerMessage } from "@/lib/types";
 
 const QTY_CHOICES = [10, 25, 50, 100, 250];
+const USERNAME = "Sarvagya";
 
 const fmt = (n: number, digits = 2) =>
   n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 export default function LeaguePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const [username, setUsername] = useState<string | null>(null);
-  const [nameInput, setNameInput] = useState("");
+  const username = USERNAME;
   const [state, setState] = useState<LeagueStateDTO | null>(null);
   const [qty, setQty] = useState(25);
+  const [viewing, setViewing] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setUsername(localStorage.getItem("fsm-username"));
-  }, []);
 
   function showToast(text: string, error = false) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -31,7 +28,6 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
   }
 
   useEffect(() => {
-    if (!username) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${proto}://${location.host}/ws`);
     wsRef.current = ws;
@@ -68,34 +64,6 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
 
   const teams = useMemo(() => (state ? Object.keys(state.score) : []), [state]);
 
-  if (!username) {
-    return (
-      <main className="home">
-        <h1>⚽ Pitch Exchange</h1>
-        <div className="card">
-          <h2>Pick a username to join league {code}</h2>
-          <div className="row">
-            <div className="field">
-              <label htmlFor="name">Username</label>
-              <input id="name" value={nameInput} onChange={(e) => setNameInput(e.target.value)} maxLength={24} />
-            </div>
-            <button
-              className="primary"
-              onClick={() => {
-                const name = nameInput.trim();
-                if (!name) return;
-                localStorage.setItem("fsm-username", name);
-                setUsername(name);
-              }}
-            >
-              Join
-            </button>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
   if (!state) {
     return (
       <main className="league">
@@ -110,9 +78,8 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
   return (
     <main className="league">
       <div className="topbar">
-        <span>
-          Invite code <span className="code">{state.code}</span>
-        </span>
+        <span className="code">{USERNAME}</span>
+        {state.seasonLabel && <span className="season-label">{state.seasonLabel}</span>}
         <span className={`badge ${state.status}`}>{state.status}</span>
         {state.status !== "lobby" && (
           <>
@@ -123,9 +90,6 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
           </>
         )}
         <span className="spacer" />
-        <span className="muted">
-          {state.users.length} traders · buy-in ${fmt(state.buyIn, 0)}
-        </span>
         {state.status === "lobby" &&
           (isHost ? (
             <button className="primary" onClick={startMatch}>
@@ -134,7 +98,19 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
           ) : (
             <span className="muted">waiting for {state.host} to kick off…</span>
           ))}
+        <span className="conversion-badge">
+          ${fmt(state.buyInReal, 0)} = {fmt(state.buyIn, 0)} coins
+        </span>
       </div>
+      {(state.windowLabel || state.matchLabel) && (
+        <div className="sub-header muted">
+          {state.windowLabel}
+          {state.windowLabel && state.matchLabel && " · "}
+          {state.matchLabel}
+          {" · "}
+          Invite code <span className="code">{state.code}</span> · {state.users.length} traders
+        </div>
+      )}
 
       {state.status === "settled" && (
         <div className="fulltime-banner">
@@ -266,7 +242,11 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
               </thead>
               <tbody>
                 {state.leaderboard.map((entry, i) => (
-                  <tr key={entry.username} className={entry.username === you?.username ? "me" : ""}>
+                  <tr
+                    key={entry.username}
+                    className={`clickable-row ${entry.username === you?.username ? "me" : ""}`}
+                    onClick={() => setViewing(entry.username)}
+                  >
                     <td>{i + 1}</td>
                     <td>{entry.username}</td>
                     <td className="num">${fmt(entry.value)}</td>
@@ -292,7 +272,70 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
       </div>
 
       {toast && <div className={`toast ${toast.error ? "error" : ""}`}>{toast.text}</div>}
+
+      {viewing && (
+        <PortfolioModal
+          username={viewing}
+          entry={state.leaderboard.find((e) => e.username === viewing)!}
+          players={state.players}
+          prices={state.prices}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </main>
+  );
+}
+
+function PortfolioModal({
+  username,
+  entry,
+  players,
+  prices,
+  onClose,
+}: {
+  username: string;
+  entry: LeagueStateDTO["leaderboard"][number];
+  players: LeagueStateDTO["players"];
+  prices: LeagueStateDTO["prices"];
+  onClose: () => void;
+}) {
+  const positions = Object.entries(entry.positions);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{username}&rsquo;s portfolio</h2>
+        <div className="big-value">${fmt(entry.value)}</div>
+        <p className="muted" style={{ margin: "2px 0 10px" }}>
+          cash ${fmt(entry.cash)}
+        </p>
+        {positions.length > 0 ? (
+          <table className="plain">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th className="num">Shares</th>
+                <th className="num">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map(([playerId, shares]) => {
+                const player = players.find((p) => p.id === playerId);
+                return (
+                  <tr key={playerId}>
+                    <td>{player?.name ?? playerId}</td>
+                    <td className={`num ${shares < 0 ? "down" : ""}`}>{fmt(shares, 0)}</td>
+                    <td className="num">${fmt(shares * prices[playerId])}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">All cash, no open positions.</p>
+        )}
+        <button onClick={onClose}>Close</button>
+      </div>
+    </div>
   );
 }
 

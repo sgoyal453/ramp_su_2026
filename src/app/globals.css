@@ -147,6 +147,161 @@ input:focus {
   margin-top: 8px;
 }
 
+/* ---- league browse (homepage) ---- */
+.browse {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+.browse-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.browse-header h1 {
+  font-size: 26px;
+  margin: 0 0 4px;
+}
+.browse .tagline {
+  color: var(--ink-2);
+  margin: 0;
+  max-width: 520px;
+}
+.me-badge {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.me-badge strong {
+  color: var(--accent);
+}
+.sport-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.chip {
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  background: var(--surface);
+}
+.chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.league-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  max-height: 72vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.league-card {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  height: auto;
+}
+.league-card:hover {
+  border-color: var(--ink-muted);
+}
+.league-card.joined {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(57, 135, 229, 0.35) inset;
+}
+.league-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.league-emoji {
+  font-size: 26px;
+}
+.league-name {
+  font-weight: 700;
+  font-size: 15px;
+}
+.league-sport {
+  font-size: 12px;
+}
+.league-window {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.league-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--grid);
+}
+.joined-tag {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+/* ---- modal (league info / portfolio viewer) ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 20px;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal h2 {
+  margin: 6px 0 2px;
+}
+.modal .not-joined {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  margin: 14px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--grid);
+}
+.modal-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.clickable-row {
+  cursor: pointer;
+}
+.clickable-row:hover td {
+  color: var(--accent);
+}
+
 /* ---- league layout ---- */
 .league {
   max-width: 1240px;
@@ -197,6 +352,25 @@ input:focus {
 }
 .spacer {
   flex: 1;
+}
+.season-label {
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.conversion-badge {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.sub-header {
+  font-size: 12.5px;
+  margin: -8px 0 16px;
+  padding: 0 4px;
 }
 
 .columns {

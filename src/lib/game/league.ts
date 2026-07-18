@@ -32,19 +32,31 @@ export interface LeagueOptions {
   code: string;
   host: string;
   buyIn?: number;
+  /** Real-dollar equivalent of `buyIn` fake coins, e.g. 10 for "$10 = 1,000,000 coins". */
+  buyInReal?: number;
   startingCash?: number;
   /** Real-world duration of the compressed 90' match, in minutes. */
   matchRealMinutes?: number;
   seed?: number;
+  /** Competition this league represents, e.g. "World Cup 2026". */
+  seasonLabel?: string;
+  /** Human-readable date range the league runs over, e.g. "Jun 11 – Jul 19, 2026". */
+  windowLabel?: string;
+  /** Label for the currently-live fixture, e.g. "Final · FC Falcon vs United Wolves". */
+  matchLabel?: string;
 }
 
 export class League {
   readonly code: string;
   readonly host: string;
   readonly buyIn: number;
+  readonly buyInReal: number;
   readonly startingCash: number;
   readonly matchRealMinutes: number;
   readonly seed: number;
+  readonly seasonLabel: string;
+  readonly windowLabel: string;
+  readonly matchLabel: string;
   readonly players: RosterPlayer[];
   readonly markets: Map<string, PlayerMarket>;
   readonly users = new Map<string, UserAccount>();
@@ -56,12 +68,27 @@ export class League {
   score: Record<string, number> = {};
   settlements: Record<string, number> | null = null;
 
-  constructor({ code, host, buyIn = 1000, startingCash = DEFAULT_STARTING_CASH, matchRealMinutes = 10, seed }: LeagueOptions) {
+  constructor({
+    code,
+    host,
+    buyIn = 1000,
+    buyInReal = 10,
+    startingCash = DEFAULT_STARTING_CASH,
+    matchRealMinutes = 10,
+    seed,
+    seasonLabel = "",
+    windowLabel = "",
+    matchLabel = "",
+  }: LeagueOptions) {
     this.code = code;
     this.host = host;
     this.buyIn = buyIn;
+    this.buyInReal = buyInReal;
     this.startingCash = startingCash;
     this.matchRealMinutes = matchRealMinutes;
+    this.seasonLabel = seasonLabel;
+    this.windowLabel = windowLabel;
+    this.matchLabel = matchLabel;
     this.seed = seed ?? Math.floor(Math.random() * 2 ** 31);
     this.players = createDefaultRoster();
     this.markets = createLeagueMarkets(
@@ -84,6 +111,17 @@ export class League {
     const account: UserAccount = { username, cash: this.startingCash, positions: new Map() };
     this.users.set(username, account);
     return account;
+  }
+
+  /**
+   * Seed a non-interactive demo trader with a fake cash balance and positions,
+   * bypassing the LMSR (their holdings are cosmetic — this doesn't move
+   * market state). Used to pre-populate a league's leaderboard for a demo.
+   */
+  seedBotUser(username: string, cash: number, positions: Record<string, number> = {}): void {
+    const account = this.addUser(username);
+    account.cash = cash;
+    account.positions = new Map(Object.entries(positions));
   }
 
   /** Preview the dollar cost of a trade without executing it. */
@@ -125,8 +163,13 @@ export class League {
     return { ...fill, position: newPosition, cash: account.cash };
   }
 
-  /** Kick off the simulated match. Host only; lobby only. */
-  start(username: string, hooks: LeagueHooks = {}): void {
+  /**
+   * Kick off the simulated match. Host only; lobby only.
+   * `fastForwardMinutes` instantly replays that many simulated minutes
+   * before the live clock starts, so the league can open already "in
+   * progress" (used to make a demo league feel live from the first load).
+   */
+  start(username: string, hooks: LeagueHooks = {}, fastForwardMinutes = 0): void {
     if (username !== this.host) throw new Error("only the host can start the match");
     if (this.status !== "lobby") throw new Error(`match already ${this.status}`);
     this.status = "live";
@@ -151,6 +194,8 @@ export class League {
       this.settle(result);
       hooks.onFullTime?.(result);
     });
+    const clamped = Math.min(fastForwardMinutes, this.sim.matchMinutes - 1);
+    for (let i = 0; i < clamped; i++) this.sim.advanceMinute();
     this.sim.start();
   }
 
@@ -166,7 +211,12 @@ export class League {
 
   leaderboard(): LeaderboardEntryDTO[] {
     return [...this.users.values()]
-      .map((u) => ({ username: u.username, cash: u.cash, value: this.portfolioValue(u.username) }))
+      .map((u) => ({
+        username: u.username,
+        cash: u.cash,
+        value: this.portfolioValue(u.username),
+        positions: Object.fromEntries(u.positions),
+      }))
       .sort((a, b) => b.value - a.value);
   }
 
@@ -177,7 +227,11 @@ export class League {
       code: this.code,
       status: this.status,
       buyIn: this.buyIn,
+      buyInReal: this.buyInReal,
       startingCash: this.startingCash,
+      seasonLabel: this.seasonLabel,
+      windowLabel: this.windowLabel,
+      matchLabel: this.matchLabel,
       host: this.host,
       users: [...this.users.keys()],
       players: this.players.map(publicPlayer),

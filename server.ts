@@ -10,7 +10,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
-import { createLeague, getLeague } from "./src/lib/game/store";
+import { createLeague, ensureWorldCupLeague, getLeague } from "./src/lib/game/store";
 import type { League } from "./src/lib/game/league";
 import type { ClientMessage, ServerMessage } from "./src/lib/types";
 
@@ -107,6 +107,7 @@ const handle = app.getRequestHandler();
 
 await app.prepare();
 const nextUpgrade = app.getUpgradeHandler();
+ensureWorldCupLeague(); // boot the one league Sarvagya is in, already "live"
 
 const server = createServer(async (req, res) => {
   try {
