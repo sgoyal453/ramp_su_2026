@@ -13,7 +13,7 @@
  */
 
 import OpenAI from "openai";
-import type { MatchEvent } from "./matchSimulator";
+import type { MatchEventDTO } from "../types";
 
 export interface PlayerSnapshot {
   id: string;
@@ -53,23 +53,26 @@ const SYSTEM_PROMPT = `You are an automated market arbitrageur in a fantasy socc
 Player share prices are driven by an LMSR (Logarithmic Market Scoring Rule) market maker — \
 prices live in a $0–$100 range, roughly: $50 = neutral, >$50 = performing well, <$50 = underperforming.
 
-When a primary match event occurs involving one player, your job is to identify genuinely \
-correlated second-order effects on OTHER players and call apply_signal for each one.
+Events come from a real, verified match replay — not a simulation. The event vocabulary is:
+GOAL, PENALTY_GOAL, OWN_GOAL, ASSIST (the recorded provider of a goal, fired as its own event),
+YELLOW_CARD, SECOND_YELLOW, RED_CARD, SUBSTITUTION, PENALTY_SAVE. Your job is to identify \
+genuinely correlated second-order effects on OTHER players and call apply_signal for each one.
 
 Signal guidelines by event type:
-• GOAL: opponent GK and DEFs bearish (clean sheet gone, -20 to -30); same-team MIDs bullish \
-(+15 to +25, assist/involvement); same-team other FWDs bullish (+10 to +20, team momentum)
-• RED_CARD: same-team survivors bearish (-15 to -25, playing 10v11); entire opponent team \
-bullish (+10 to +20, numerical advantage)
-• SAVE: same-team DEFs bullish (+10 to +15, clean sheet still alive); opponent FWDs bearish \
-(-8 to -12, being stopped)
-• KEY_PASS: same-team FWDs bullish (+8 to +15, receiving quality service)
-• SHOT_ON_TARGET: opponent GK slightly bearish (-5 to -10, under pressure)
+• GOAL / PENALTY_GOAL: opponent GK and DEFs bearish (clean sheet gone, -20 to -30); same-team \
+other FWDs bullish (+10 to +20, team momentum). The scorer and the ASSIST provider are already \
+priced in by their own primary signals — do not also signal them here.
+• OWN_GOAL: the player's own team's other DEFs bearish (-8 to -15, backline error); the \
+scoring-benefiting opponent's FWDs mildly bullish (+5 to +10, gifted momentum).
+• ASSIST: same-team other FWDs/MIDs mildly bullish (+5 to +12, service is flowing).
+• RED_CARD / SECOND_YELLOW: same-team survivors bearish (-15 to -25, playing a man down); \
+entire opponent team bullish (+10 to +20, numerical advantage).
 • YELLOW_CARD: same-team DEFs slightly bearish (-5 to -10, reckless backline); opponent FWDs \
-slightly bullish (+5 to +8, can be more aggressive)
-• TACKLE: same-team GK slightly bullish (+4 to +7, defense is holding)
-• FOUL / SHOT_OFF_TARGET / SUBSTITUTION: usually no significant ripple — skip or apply 1-2 \
-very small signals only if clearly warranted
+slightly bullish (+5 to +8, can be more aggressive).
+• PENALTY_SAVE: same-team DEFs bullish (+10 to +15, clean sheet still alive); opponent FWDs \
+bearish (-8 to -12, a big chance was just stopped).
+• SUBSTITUTION: usually no significant ripple — skip, or apply one very small signal only if \
+clearly warranted (e.g. a struggling player withdrawn late).
 
 Sizing rules:
 - Signals after minute 75 should be 30% smaller (less time left for effects to matter)
@@ -112,7 +115,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         properties: {
           playerId: {
             type: "string",
-            description: "The target player's id (e.g. 'fal-mid-6')",
+            description: "The target player's id, from get_players() (e.g. 'arg-julian-alvarez')",
           },
           shares: {
             type: "number",
@@ -131,7 +134,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 ];
 
 export async function runArbitrageur(
-  event: MatchEvent,
+  event: MatchEventDTO,
   context: ArbitrageurContext,
 ): Promise<void> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -170,6 +173,7 @@ export async function runArbitrageur(
     const toolResults: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = [];
 
     for (const tc of choice.message.tool_calls) {
+      if (tc.type !== "function") continue; // we only ever declare function tools
       let result: unknown;
       const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
 

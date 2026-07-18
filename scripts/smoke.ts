@@ -74,18 +74,20 @@ bob.send({ type: "start" });
 await waitFor(() => bob.errors.some((e) => e.includes("host")), "host-only error");
 console.log("✓ non-host start rejected");
 
-// 4. Trades: bob longs the star, sid shorts the wildcard; both see new price.
-const starBefore = sid.latest().prices["wol-fwd-10"];
-bob.send({ type: "trade", playerId: "wol-fwd-10", shares: 100 });
-await waitFor(() => (bob.latest().you?.positions["wol-fwd-10"] ?? 0) === 100, "bob position");
-await waitFor(() => sid.latest().prices["wol-fwd-10"] > starBefore, "price moved for sid too");
-sid.send({ type: "trade", playerId: "wol-fwd-11", shares: -200 });
-await waitFor(() => (sid.latest().you?.positions["wol-fwd-11"] ?? 0) === -200, "sid short open");
+// 4. Trades: bob longs the star, sid shorts a bench forward; both see new price.
+const STAR = "egy-mohamed-salah";
+const BENCH_FWD = "egy-omar-marmoush";
+const starBefore = sid.latest().prices[STAR];
+bob.send({ type: "trade", playerId: STAR, shares: 100 });
+await waitFor(() => (bob.latest().you?.positions[STAR] ?? 0) === 100, "bob position");
+await waitFor(() => sid.latest().prices[STAR] > starBefore, "price moved for sid too");
+sid.send({ type: "trade", playerId: BENCH_FWD, shares: -200 });
+await waitFor(() => (sid.latest().you?.positions[BENCH_FWD] ?? 0) === -200, "sid short open");
 assert.ok(sid.latest().you!.cash > 100_000, "short proceeds credited");
 console.log("✓ buy + short executed; price moves broadcast to everyone");
 
 // 5. Over-spend and over-short are rejected.
-bob.send({ type: "trade", playerId: "wol-fwd-10", shares: 9999 });
+bob.send({ type: "trade", playerId: STAR, shares: 9999 });
 await waitFor(() => bob.errors.some((e) => e.includes("insufficient") || e.includes("cap")), "risk-check error");
 console.log("✓ over-sized trade rejected");
 
@@ -96,13 +98,15 @@ console.log("✓ match started; waiting for full time (~60s)…");
 await waitFor(() => sid.latest().status === "settled", "settlement", 120_000);
 
 const final = sid.latest();
-assert.ok(sid.countEvents() > 20, `events streamed (${sid.countEvents()})`);
+// The committed fixture has a fixed number of verified events (goals, cards,
+// subs, plus a derived ASSIST event per assisted goal) — same every run.
+assert.equal(sid.countEvents(), 24, `events streamed (${sid.countEvents()})`);
 assert.equal(final.minute, 90);
-assert.ok(final.settlements && Object.keys(final.settlements).length === 18, "all markets settled");
+assert.ok(final.settlements && Object.keys(final.settlements).length === final.players.length, "all markets settled");
 assert.equal(Object.keys(final.you!.positions).length, 0, "positions converted to cash");
 assert.equal(final.leaderboard.length, 2);
 assert.ok(final.leaderboard[0].value >= final.leaderboard[1].value, "leaderboard sorted");
-assert.ok(final.history["wol-fwd-10"].length >= 91, "price history sampled per minute");
+assert.ok(final.history[STAR].length >= 91, "price history sampled per minute");
 
 console.log(`✓ full time — score: ${JSON.stringify(final.score)}`);
 console.log(`✓ ${sid.countEvents()} events streamed to clients`);

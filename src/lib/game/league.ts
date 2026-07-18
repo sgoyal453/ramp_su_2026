@@ -239,6 +239,36 @@ export class League {
       .sort((a, b) => b.value - a.value);
   }
 
+  /**
+   * Apply a correlated signal from the arbitrageur agent directly to a
+   * player's LMSR market — the same market-maker nudge a match event uses,
+   * bypassing cash/positions since it isn't a trade. Recorded in the ticker
+   * (tagged `isArbitrageur`) so traders can see why the price moved. Returns
+   * false if the market doesn't exist or has already settled.
+   */
+  applyArbitrageurSignal(playerId: string, shares: number, reason: string): boolean {
+    if (this.status === "settled") return false;
+    const market = this.markets.get(playerId);
+    if (!market || market.settled) return false;
+    if (shares === 0) return true;
+    market.applySignal(shares);
+    const player = this.fixture.players.find((p) => p.id === playerId);
+    const event: MatchEventDTO = {
+      minute: this.minute,
+      type: "ARBITRAGE",
+      playerId,
+      playerName: player?.name ?? playerId,
+      team: player?.team ?? "",
+      points: 0,
+      signalShares: shares,
+      commentary: `${this.minute}' — ${reason}`,
+      isArbitrageur: true,
+    };
+    this.ticker.unshift(event);
+    if (this.ticker.length > TICKER_LIMIT) this.ticker.pop();
+    return true;
+  }
+
   /** Client-safe fixture metadata: identifies the real match (with sources)
    *  without leaking its events or outcome into the lobby. */
   fixtureMeta(): FixtureMetaDTO {

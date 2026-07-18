@@ -36,7 +36,9 @@ export const LEAGUE_CATALOG: LeagueSummary[] = [
     buyInFake: 1_000_000,
     joined: true,
     code: "WC2026",
-    blurb: "Final matchday — FC Falcon vs United Wolves is live right now. You're in this one.",
+    // Overridden at runtime on the homepage with the real fixture's teams/stage
+    // once /api/fixture resolves (src/app/page.tsx) — this is just the fallback.
+    blurb: "A real, verified World Cup 2026 knockout match is live right now. You're in this one.",
   },
   {
     id: "afl-premiership",

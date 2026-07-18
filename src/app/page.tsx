@@ -1,21 +1,59 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LEAGUE_CATALOG, type LeagueSummary } from "@/lib/leagues/catalog";
 
 const USERNAME = "Sarvagya";
 
+interface FixtureMeta {
+  fixtureId: string;
+  competition: string;
+  stage: string;
+  dateUtc: string;
+  venue: string | null;
+  city: string | null;
+  homeTeam: string;
+  awayTeam: string;
+  sources: string[];
+}
+
 export default function Home() {
   const router = useRouter();
   const [active, setActive] = useState<LeagueSummary | null>(null);
+  const [fixture, setFixture] = useState<FixtureMeta | null>(null);
+
+  useEffect(() => {
+    fetch("/api/fixture")
+      .then((res) => res.json())
+      .then((body) => {
+        if (body.ok) setFixture(body.fixture);
+      })
+      .catch(() => {}); // homepage still browsable if the fixture endpoint is down
+  }, []);
+
+  // The featured World Cup 2026 card is backed by a real verified fixture —
+  // once it loads, swap the static placeholder copy for the real matchup.
+  const catalog = useMemo(() => {
+    if (!fixture) return LEAGUE_CATALOG;
+    return LEAGUE_CATALOG.map((l) =>
+      l.id === "world-cup-2026"
+        ? {
+            ...l,
+            blurb: `${fixture.stage} — ${fixture.homeTeam} vs ${fixture.awayTeam} is live right now${
+              fixture.venue ? ` at ${fixture.venue}` : ""
+            }. You're in this one.`,
+          }
+        : l,
+    );
+  }, [fixture]);
 
   const sports = useMemo(() => {
-    const set = new Set(LEAGUE_CATALOG.map((l) => l.sport));
+    const set = new Set(catalog.map((l) => l.sport));
     return ["All", ...set];
-  }, []);
+  }, [catalog]);
   const [filter, setFilter] = useState("All");
-  const shown = filter === "All" ? LEAGUE_CATALOG : LEAGUE_CATALOG.filter((l) => l.sport === filter);
+  const shown = filter === "All" ? catalog : catalog.filter((l) => l.sport === filter);
 
   function openLeague(league: LeagueSummary) {
     if (league.joined && league.code) {

@@ -440,6 +440,11 @@ input:focus {
   margin: 0 0 16px;
   padding: 0 4px;
 }
+.verified-badge {
+  color: var(--green);
+  font-weight: 700;
+  cursor: help;
+}
 
 .columns {
   display: grid;
@@ -534,6 +539,31 @@ input:focus {
   font-weight: 700;
   font-size: 13.5px;
   line-height: 1.2;
+}
+.shirt-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.bench-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--ink-muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 .player-card-team {
   font-size: 11px;
@@ -678,6 +708,23 @@ input:focus {
 }
 .ticker .entry.bad {
   border-left-color: var(--pink);
+}
+.ticker .entry.arb {
+  border-left-color: var(--violet);
+  background: rgba(160, 107, 255, 0.1);
+}
+.arb-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--violet);
+  background: rgba(160, 107, 255, 0.16);
+  border: 1px solid rgba(160, 107, 255, 0.4);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 .ticker .entry.enter {
   animation: ticker-enter 0.35s ease-out;

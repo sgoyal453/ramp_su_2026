@@ -12,8 +12,9 @@ import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
 import { createLeague, ensureWorldCupLeague, getLeague, WORLD_CUP_CODE } from "./src/lib/game/store";
 import { fixtureAvailability } from "./src/lib/fixtures/load";
+import { runArbitrageur } from "./src/lib/engine/arbitrageurAgent";
 import type { League } from "./src/lib/game/league";
-import type { ClientMessage, ServerMessage } from "./src/lib/types";
+import type { ClientMessage, MatchEventDTO, ServerMessage } from "./src/lib/types";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT ?? 3000);
@@ -43,6 +44,43 @@ function broadcast(league: League, message: ServerMessage): void {
   }
 }
 
+/**
+ * Fire the correlation arbitrageur for a primary event, async and detached
+ * from the match clock. No-ops without OPENAI_API_KEY (see arbitrageurAgent).
+ * Every accepted correlated signal is broadcast as its own ticker entry.
+ */
+function runCorrelationArbitrageur(league: League, event: MatchEventDTO): void {
+  runArbitrageur(event, {
+    getPlayers: () =>
+      league.fixture.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        position: p.position,
+        currentPrice: league.markets.get(p.id)!.price(),
+      })),
+    getMatchState: () => ({
+      minute: league.minute,
+      score: league.score,
+      recentEvents: league.ticker.slice(0, 5).map((e) => ({
+        minute: e.minute,
+        type: e.type,
+        playerName: e.playerName,
+        team: e.team,
+        commentary: e.commentary,
+      })),
+    }),
+    applySignal: (playerId, shares, reason) => {
+      if (playerId === event.playerId) return false; // primary player already priced in
+      const accepted = league.applyArbitrageurSignal(playerId, shares, reason);
+      if (accepted && shares !== 0) broadcastState(league);
+      return accepted;
+    },
+  }).catch((err) => {
+    console.error("arbitrageur agent error:", err);
+  });
+}
+
 function handleMessage(conn: Connection, message: ClientMessage): void {
   switch (message.type) {
     case "join": {
@@ -62,6 +100,7 @@ function handleMessage(conn: Connection, message: ClientMessage): void {
         onEvent: (event) => {
           broadcast(league, { type: "event", event });
           broadcastState(league); // events move prices; keep everyone current
+          runCorrelationArbitrageur(league, event);
         },
         onMinute: () => broadcastState(league),
         onFullTime: () => broadcastState(league),

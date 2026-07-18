@@ -131,8 +131,17 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
           {state.windowLabel}
           {state.windowLabel && state.matchLabel && " · "}
           {state.matchLabel}
+          {state.fixture.venue && ` · ${state.fixture.venue}`}
           {" · "}
           Invite code <span className="code">{state.code}</span> · {state.users.length} traders
+          {state.fixture.sources.length > 0 && (
+            <>
+              {" · "}
+              <span className="verified-badge" title={state.fixture.sources.join("\n")}>
+                ✓ verified against {state.fixture.sources.length} sources
+              </span>
+            </>
+          )}
         </div>
       )}
 
@@ -201,7 +210,7 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
                         <tr key={playerId}>
                           <td>{player?.name ?? playerId}</td>
                           <td className={`num ${shares < 0 ? "down" : ""}`}>{fmt(shares, 0)}</td>
-                          <td className="num">${fmt(shares * state.prices[playerId])}</td>
+                          <td className="num">${fmt(you.positionValues[playerId] ?? shares * state.prices[playerId])}</td>
                         </tr>
                       );
                     })}
@@ -294,7 +303,11 @@ function PlayerCard({
     >
       <div className="player-card-head">
         <div>
-          <div className="player-card-name">{player.name}</div>
+          <div className="player-card-name">
+            {player.shirt != null && <span className="shirt-badge">{player.shirt}</span>}
+            {player.name}
+            {player.started === false && <span className="bench-badge">SUB</span>}
+          </div>
           <div className="player-card-team">{player.team}</div>
         </div>
         <span className="pos-chip">{player.position}</span>
@@ -387,7 +400,20 @@ function PortfolioModal({
   );
 }
 
+const GOAL_EVENTS = new Set(["GOAL", "PENALTY_GOAL", "OWN_GOAL"]);
+
 function TickerEntry({ event }: { event: MatchEventDTO }) {
-  const cls = event.type === "GOAL" ? "goal" : event.signalShares < 0 ? "bad" : "";
-  return <div className={`entry enter ${cls}`}>{event.commentary}</div>;
+  const cls = event.isArbitrageur
+    ? "arb"
+    : GOAL_EVENTS.has(event.type)
+      ? "goal"
+      : event.signalShares < 0
+        ? "bad"
+        : "";
+  return (
+    <div className={`entry enter ${cls}`}>
+      {event.isArbitrageur && <span className="arb-tag">🤖 agent</span>}
+      {event.commentary}
+    </div>
+  );
 }
