@@ -2,7 +2,16 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkline } from "@/components/Sparkline";
+import { BrandMark } from "@/components/BrandMark";
 import type { LeagueStateDTO, MatchEventDTO, ServerMessage } from "@/lib/types";
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
 const QTY_CHOICES = [10, 25, 50, 100, 250];
 
@@ -71,7 +80,12 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
   if (!username) {
     return (
       <main className="home">
-        <h1>⚽ Pitch Exchange</h1>
+        <div className="home-hero">
+          <div className="brand">
+            <BrandMark />
+            <span className="wordmark">Ticker</span>
+          </div>
+        </div>
         <div className="card">
           <h2>Pick a username to join league {code}</h2>
           <div className="row">
@@ -110,21 +124,27 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
   return (
     <main className="league">
       <div className="topbar">
-        <span>
-          Invite code <span className="code">{state.code}</span>
+        <div className="brand">
+          <BrandMark size={30} />
+          <span className="wordmark" style={{ fontSize: 17 }}>
+            Ticker
+          </span>
+        </div>
+        <span className="invite">
+          Invite<span className="code">{state.code}</span>
         </span>
         <span className={`badge ${state.status}`}>{state.status}</span>
         {state.status !== "lobby" && (
           <>
             <span className="clock">{state.minute}&rsquo;</span>
             <span className="scoreline">
-              {teams.map((t) => `${t} ${state.score[t]}`).join(" — ")}
+              {teams.map((t) => `${t} ${state.score[t]}`).join("  —  ")}
             </span>
           </>
         )}
         <span className="spacer" />
         <span className="muted">
-          {state.users.length} traders · buy-in ${fmt(state.buyIn, 0)}
+          {state.users.length} {state.users.length === 1 ? "trader" : "traders"} · buy-in ${fmt(state.buyIn, 0)}
         </span>
         {state.status === "lobby" &&
           (isHost ? (
@@ -138,8 +158,11 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
 
       {state.status === "settled" && (
         <div className="fulltime-banner">
-          🏁 Full time — all positions settled. {state.leaderboard[0]?.username} wins the league with $
-          {fmt(state.leaderboard[0]?.value ?? 0)}.
+          <span className="trophy">🏆</span>
+          <span>
+            Full time — all positions settled. <strong>{state.leaderboard[0]?.username}</strong> wins the league with $
+            {fmt(state.leaderboard[0]?.value ?? 0)}.
+          </span>
         </div>
       )}
 
@@ -175,21 +198,29 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
                     const kickoff = state.history[p.id]?.[0] ?? 50;
                     const delta = price - kickoff;
                     const position = you?.positions[p.id] ?? 0;
+                    const flat = Math.abs(delta) < 0.005;
                     return (
                       <tr key={p.id}>
                         <td>
-                          <div className="player-name">{p.name}</div>
-                          <div className="player-meta">
-                            <span className="pos-badge">{p.position}</span>
-                            {p.team}
+                          <div className="player-cell">
+                            <span className="player-avatar">{initials(p.name)}</span>
+                            <div>
+                              <div className="player-name">{p.name}</div>
+                              <div className="player-meta">
+                                <span className="pos-badge">{p.position}</span>
+                                {p.team}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td>
                           <Sparkline data={state.history[p.id] ?? []} />
                         </td>
                         <td className="num price">${fmt(price)}</td>
-                        <td className={`num ${Math.abs(delta) < 0.005 ? "muted" : delta > 0 ? "up" : "down"}`}>
-                          {Math.abs(delta) < 0.005 ? "·" : delta > 0 ? "▲" : "▼"} {fmt(Math.abs(delta))}
+                        <td className="num">
+                          <span className={`delta-pill ${flat ? "flat" : delta > 0 ? "up" : "down"}`}>
+                            {flat ? "·" : delta > 0 ? "▲" : "▼"} {fmt(Math.abs(delta))}
+                          </span>
                         </td>
                         <td className={`num ${position < 0 ? "down" : ""}`}>
                           {position !== 0 ? fmt(position, 0) : <span className="muted">—</span>}
@@ -221,13 +252,13 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
           {you && (
             <section className="panel">
               <h2>Your portfolio</h2>
-              <div className="big-value">${fmt(you.value)}</div>
-              <p className="muted" style={{ margin: "2px 0 10px" }}>
-                cash ${fmt(you.cash)} · P&amp;L{" "}
-                <span className={you.value >= state.startingCash ? "up" : "down"}>
-                  {you.value >= state.startingCash ? "+" : "−"}${fmt(Math.abs(you.value - state.startingCash))}
+              <div className="portfolio-value">
+                <span className="big-value">${fmt(you.value)}</span>
+                <span className={`pnl-pill ${you.value >= state.startingCash ? "up" : "down"}`}>
+                  {you.value >= state.startingCash ? "▲" : "▼"} ${fmt(Math.abs(you.value - state.startingCash))}
                 </span>
-              </p>
+              </div>
+              <p className="portfolio-sub">Cash ${fmt(you.cash)} available</p>
               {Object.keys(you.positions).length > 0 && (
                 <table className="plain">
                   <thead>
@@ -244,7 +275,7 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
                         <tr key={playerId}>
                           <td>{player?.name ?? playerId}</td>
                           <td className={`num ${shares < 0 ? "down" : ""}`}>{fmt(shares, 0)}</td>
-                          <td className="num">${fmt(shares * state.prices[playerId])}</td>
+                          <td className="num">${fmt(you.positionValues[playerId] ?? 0)}</td>
                         </tr>
                       );
                     })}
@@ -267,7 +298,9 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
               <tbody>
                 {state.leaderboard.map((entry, i) => (
                   <tr key={entry.username} className={entry.username === you?.username ? "me" : ""}>
-                    <td>{i + 1}</td>
+                    <td>
+                      <span className={`rank ${["gold", "silver", "bronze"][i] ?? ""}`}>{i + 1}</span>
+                    </td>
                     <td>{entry.username}</td>
                     <td className="num">${fmt(entry.value)}</td>
                   </tr>
@@ -279,7 +312,7 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
           <section className="panel">
             <h2>Match ticker</h2>
             {state.ticker.length === 0 ? (
-              <p className="muted">Events will appear here once the match kicks off.</p>
+              <p className="empty-note">Events will appear here once the match kicks off.</p>
             ) : (
               <div className="ticker">
                 {state.ticker.map((event, i) => (
@@ -298,5 +331,11 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
 
 function TickerEntry({ event }: { event: MatchEventDTO }) {
   const cls = event.type === "GOAL" ? "goal" : event.signalShares < 0 ? "bad" : "";
-  return <div className={`entry ${cls}`}>{event.commentary}</div>;
+  const text = event.commentary.replace(/^\s*\d+'\s*[—-]\s*/, "");
+  return (
+    <div className={`entry ${cls}`}>
+      <span className="tk-min">{event.minute}&rsquo;</span>
+      <span>{text}</span>
+    </div>
+  );
 }
