@@ -10,7 +10,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
-import { createLeague, ensureWorldCupLeague, getLeague } from "./src/lib/game/store";
+import { createLeague, ensureWorldCupLeague, getLeague, WORLD_CUP_CODE } from "./src/lib/game/store";
+import { fixtureAvailability } from "./src/lib/fixtures/load";
 import type { League } from "./src/lib/game/league";
 import type { ClientMessage, ServerMessage } from "./src/lib/types";
 
@@ -64,6 +65,7 @@ function handleMessage(conn: Connection, message: ClientMessage): void {
         },
         onMinute: () => broadcastState(league),
         onFullTime: () => broadcastState(league),
+        onArbitrageurSignal: () => broadcastState(league),
       });
       broadcastState(league);
       return;
@@ -107,12 +109,46 @@ const handle = app.getRequestHandler();
 
 await app.prepare();
 const nextUpgrade = app.getUpgradeHandler();
-ensureWorldCupLeague(); // boot the one league Sarvagya is in, already "live"
+
+// Load + validate the committed fixture snapshot into the memory cache once.
+// If it's missing or invalid the server still runs — the UI shows an
+// unavailable-data state and league creation is refused. Nothing synthetic
+// is ever substituted.
+const fixtureStatus = fixtureAvailability();
+if (fixtureStatus.ok) {
+  ensureWorldCupLeague(); // boot the featured league, already "live"
+} else {
+  console.error(`FIXTURE UNAVAILABLE — leagues cannot be created:\n${fixtureStatus.error}`);
+}
 
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+    if (url.pathname === "/api/fixture" && req.method === "GET") {
+      const availability = fixtureAvailability();
+      if (!availability.ok) return json(res, 503, { ok: false, error: availability.error });
+      const f = availability.fixture;
+      return json(res, 200, {
+        ok: true,
+        fixture: {
+          fixtureId: f.fixtureId,
+          competition: f.competition,
+          stage: f.stage,
+          dateUtc: f.dateUtc,
+          venue: f.venue,
+          city: f.city,
+          homeTeam: f.homeTeam,
+          awayTeam: f.awayTeam,
+          sources: f.sources.map((s) => s.url),
+        },
+        featuredLeague: getLeague(WORLD_CUP_CODE) ? WORLD_CUP_CODE : null,
+      });
+    }
     if (url.pathname === "/api/league" && req.method === "POST") {
+      const availability = fixtureAvailability();
+      if (!availability.ok) {
+        return json(res, 503, { error: `match data unavailable — league creation refused: ${availability.error}` });
+      }
       const body = await readJsonBody(req);
       const username = String(body.username ?? "").trim().slice(0, 24);
       if (!username) return json(res, 400, { error: "username required" });

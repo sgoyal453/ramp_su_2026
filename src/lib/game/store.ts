@@ -67,11 +67,11 @@ export function ensureWorldCupLeague(): League {
     matchRealMinutes: 18,
     seasonLabel: "World Cup 2026",
     windowLabel: "Jun 11 – Jul 19, 2026",
-    matchLabel: "Final · FC Falcon vs United Wolves",
+    // matchLabel defaults to the real fixture: "Round of 16 · Argentina vs Egypt"
   });
   leagues.set(league.code, league);
 
-  const playerIds = league.players.map((p) => p.id);
+  const playerIds = league.fixture.players.map((p) => p.id);
 
   // Sarvagya (host) — a couple of live positions, not a flat starting balance.
   league.seedBotUser(WORLD_CUP_HOST, 1_000_000, randomPositions(playerIds, 2));
