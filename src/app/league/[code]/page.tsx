@@ -1,14 +1,40 @@
 "use client";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Sparkline } from "@/components/Sparkline";
-import type { LeagueStateDTO, MatchEventDTO, ServerMessage } from "@/lib/types";
+import type { LeagueStateDTO, MatchEventDTO, PublicPlayerDTO, ServerMessage } from "@/lib/types";
 
 const QTY_CHOICES = [10, 25, 50, 100, 250];
 const USERNAME = "Sarvagya";
 
+// Position → glow color. Kept out of globals.css because it's data-driven
+// (one accent per field position), set per-card via the --pos-color custom
+// property that the card's border/chip styles key off of.
+const POSITION_COLOR: Record<string, string> = {
+  GK: "var(--cyan)",
+  DEF: "var(--violet)",
+  MID: "var(--gold)",
+  FWD: "var(--pink)",
+};
+
 const fmt = (n: number, digits = 2) =>
   n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+/** Brief glowing flash on a price when it moves, direction-coded. */
+function usePriceFlash(price: number): "" | "pulse-up" | "pulse-down" {
+  const prevRef = useRef(price);
+  const [flash, setFlash] = useState<"" | "pulse-up" | "pulse-down">("");
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = price;
+    if (Math.abs(price - prev) < 0.005) return;
+    setFlash(price > prev ? "pulse-up" : "pulse-down");
+    const t = setTimeout(() => setFlash(""), 700);
+    return () => clearTimeout(t);
+  }, [price]);
+  return flash;
+}
 
 export default function LeaguePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -84,9 +110,7 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
         {state.status !== "lobby" && (
           <>
             <span className="clock">{state.minute}&rsquo;</span>
-            <span className="scoreline">
-              {teams.map((t) => `${t} ${state.score[t]}`).join(" — ")}
-            </span>
+            <span className="scoreline">{teams.map((t) => `${t} ${state.score[t]}`).join(" — ")}</span>
           </>
         )}
         <span className="spacer" />
@@ -132,63 +156,20 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
               ))}
               <span className="label muted">selling past zero opens a short</span>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table className="market">
-                <thead>
-                  <tr>
-                    <th>Player</th>
-                    <th>Trend</th>
-                    <th className="num">Price</th>
-                    <th className="num">Δ Kickoff</th>
-                    <th className="num">Your shares</th>
-                    {state.status === "settled" && <th className="num">Settled</th>}
-                    {state.status !== "settled" && <th className="num">Trade</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.players.map((p) => {
-                    const price = state.prices[p.id];
-                    const kickoff = state.history[p.id]?.[0] ?? 50;
-                    const delta = price - kickoff;
-                    const position = you?.positions[p.id] ?? 0;
-                    return (
-                      <tr key={p.id}>
-                        <td>
-                          <div className="player-name">{p.name}</div>
-                          <div className="player-meta">
-                            <span className="pos-badge">{p.position}</span>
-                            {p.team}
-                          </div>
-                        </td>
-                        <td>
-                          <Sparkline data={state.history[p.id] ?? []} />
-                        </td>
-                        <td className="num price">${fmt(price)}</td>
-                        <td className={`num ${Math.abs(delta) < 0.005 ? "muted" : delta > 0 ? "up" : "down"}`}>
-                          {Math.abs(delta) < 0.005 ? "·" : delta > 0 ? "▲" : "▼"} {fmt(Math.abs(delta))}
-                        </td>
-                        <td className={`num ${position < 0 ? "down" : ""}`}>
-                          {position !== 0 ? fmt(position, 0) : <span className="muted">—</span>}
-                        </td>
-                        {state.status === "settled" ? (
-                          <td className="num">${fmt(state.settlements?.[p.id] ?? 0)}</td>
-                        ) : (
-                          <td>
-                            <div className="trade-buttons">
-                              <button className="buy" onClick={() => trade(p.id, qty)}>
-                                Buy
-                              </button>
-                              <button className="sell" onClick={() => trade(p.id, -qty)}>
-                                Sell
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="player-grid">
+              {state.players.map((p) => (
+                <PlayerCard
+                  key={p.id}
+                  player={p}
+                  price={state.prices[p.id]}
+                  history={state.history[p.id] ?? []}
+                  position={you?.positions[p.id] ?? 0}
+                  qty={qty}
+                  settled={state.status === "settled"}
+                  settlementPrice={state.settlements?.[p.id] ?? null}
+                  onTrade={(shares) => trade(p.id, shares)}
+                />
+              ))}
             </div>
           </section>
         </div>
@@ -232,28 +213,23 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
 
           <section className="panel">
             <h2>Leaderboard</h2>
-            <table className="plain">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Trader</th>
-                  <th className="num">Portfolio</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.leaderboard.map((entry, i) => (
-                  <tr
-                    key={entry.username}
-                    className={`clickable-row ${entry.username === you?.username ? "me" : ""}`}
-                    onClick={() => setViewing(entry.username)}
-                  >
-                    <td>{i + 1}</td>
-                    <td>{entry.username}</td>
-                    <td className="num">${fmt(entry.value)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="leaderboard-list">
+              {state.leaderboard.map((entry, i) => (
+                <motion.div
+                  key={entry.username}
+                  layout
+                  transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                  className={`leader-row ${entry.username === you?.username ? "me" : ""}`}
+                  onClick={() => setViewing(entry.username)}
+                >
+                  <span className={`leader-rank ${i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : ""}`}>
+                    {i + 1}
+                  </span>
+                  <span className="leader-name">{entry.username}</span>
+                  <span className="leader-value num">${fmt(entry.value)}</span>
+                </motion.div>
+              ))}
+            </div>
           </section>
 
           <section className="panel">
@@ -263,7 +239,7 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
             ) : (
               <div className="ticker">
                 {state.ticker.map((event, i) => (
-                  <TickerEntry key={`${event.minute}-${event.playerId}-${event.type}-${i}`} event={event} />
+                  <TickerEntry key={`t-${state.ticker.length - i}-${event.playerId}-${event.type}`} event={event} />
                 ))}
               </div>
             )}
@@ -283,6 +259,78 @@ export default function LeaguePage({ params }: { params: Promise<{ code: string 
         />
       )}
     </main>
+  );
+}
+
+function PlayerCard({
+  player,
+  price,
+  history,
+  position,
+  qty,
+  settled,
+  settlementPrice,
+  onTrade,
+}: {
+  player: PublicPlayerDTO;
+  price: number;
+  history: number[];
+  position: number;
+  qty: number;
+  settled: boolean;
+  settlementPrice: number | null;
+  onTrade: (shares: number) => void;
+}) {
+  const flash = usePriceFlash(price);
+  const kickoff = history[0] ?? price;
+  const delta = price - kickoff;
+  const flat = Math.abs(delta) < 0.005;
+  const posColor = POSITION_COLOR[player.position] ?? "var(--ink-muted)";
+
+  return (
+    <div
+      className={`player-card ${position !== 0 ? "has-position" : ""} ${settled ? "settled" : ""}`}
+      style={{ "--pos-color": posColor } as React.CSSProperties}
+    >
+      <div className="player-card-head">
+        <div>
+          <div className="player-card-name">{player.name}</div>
+          <div className="player-card-team">{player.team}</div>
+        </div>
+        <span className="pos-chip">{player.position}</span>
+      </div>
+
+      <div className="player-card-price-row">
+        <span className={`player-card-price ${flash}`}>${fmt(price)}</span>
+        <span className={`player-card-delta ${flat ? "muted" : delta > 0 ? "up" : "down"}`}>
+          {flat ? "·" : delta > 0 ? "▲" : "▼"} {fmt(Math.abs(delta))}
+        </span>
+      </div>
+
+      <div className="player-card-spark">
+        <Sparkline data={history} width={220} height={34} />
+      </div>
+
+      <div className="player-card-foot">
+        {settled ? (
+          <span className="settled-price">Settled ${fmt(settlementPrice ?? 0)}</span>
+        ) : (
+          <span className={`your-shares ${position > 0 ? "has-long" : position < 0 ? "has-short" : ""}`}>
+            {position !== 0 ? `${fmt(position, 0)} shares` : "no position"}
+          </span>
+        )}
+        {!settled && (
+          <div className="trade-buttons">
+            <button className="buy" onClick={() => onTrade(qty)}>
+              Buy
+            </button>
+            <button className="sell" onClick={() => onTrade(-qty)}>
+              Sell
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -341,5 +389,5 @@ function PortfolioModal({
 
 function TickerEntry({ event }: { event: MatchEventDTO }) {
   const cls = event.type === "GOAL" ? "goal" : event.signalShares < 0 ? "bad" : "";
-  return <div className={`entry ${cls}`}>{event.commentary}</div>;
+  return <div className={`entry enter ${cls}`}>{event.commentary}</div>;
 }

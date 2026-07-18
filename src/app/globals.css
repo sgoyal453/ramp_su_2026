@@ -1,20 +1,45 @@
-/* Dark trading-terminal theme. Token values from the validated reference
-   palette (dark surface #1a1a19); up/down polarity uses status good/critical,
-   both ≥3:1 on this surface. */
+/* ============================================================
+   Pitch Exchange — cyber-sports design system.
+   Deep near-black base, glowing neon signal colors: electric cyan
+   for buy/primary action, hot pink for sell/down, neon green for
+   up/positive. Every polarity signal pairs a glyph with color so
+   it never carries the information alone.
+   ============================================================ */
 :root {
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --surface-2: #222220;
-  --ink: #ffffff;
-  --ink-2: #c3c2b7;
-  --ink-muted: #898781;
-  --grid: #2c2c2a;
-  --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.1);
-  --up: #0ca30c;
-  --down: #d03b3b;
-  --accent: #3987e5; /* categorical slot 1, dark step */
-  --accent-2: #199e70;
+  --bg: #0b0e14;
+  --bg-2: #080a0f;
+  --surface: #11151d;
+  --surface-2: #171c26;
+  --surface-3: #1e2431;
+  --hover: #232a38;
+
+  --ink: #eef2ff;
+  --ink-2: #9aa5c2;
+  --ink-muted: #5d6680;
+
+  --border: rgba(148, 163, 209, 0.12);
+  --border-strong: rgba(148, 163, 209, 0.22);
+  --grid: rgba(148, 163, 209, 0.08);
+
+  --cyan: #00e5ff;
+  --cyan-soft: rgba(0, 229, 255, 0.14);
+  --green: #39ff8a;
+  --green-soft: rgba(57, 255, 138, 0.14);
+  --pink: #ff2e6b;
+  --pink-soft: rgba(255, 46, 107, 0.14);
+  --gold: #ffcf49;
+  --gold-soft: rgba(255, 207, 73, 0.14);
+  --violet: #a06bff;
+
+  --up: var(--green);
+  --down: var(--pink);
+  --accent: var(--cyan);
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --glow-cyan: 0 0 0 1px rgba(0, 229, 255, 0.35), 0 0 22px rgba(0, 229, 255, 0.25);
+  --glow-green: 0 0 0 1px rgba(57, 255, 138, 0.35), 0 0 22px rgba(57, 255, 138, 0.22);
+  --glow-pink: 0 0 0 1px rgba(255, 46, 107, 0.35), 0 0 22px rgba(255, 46, 107, 0.22);
 }
 
 * {
@@ -25,61 +50,93 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--page);
+  background: var(--bg);
   color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(1000px 560px at 8% -10%, rgba(0, 229, 255, 0.08), transparent 60%),
+    radial-gradient(900px 560px at 100% 0%, rgba(160, 107, 255, 0.08), transparent 55%),
+    radial-gradient(700px 500px at 50% 110%, rgba(255, 46, 107, 0.05), transparent 55%);
+  pointer-events: none;
 }
 
 a {
-  color: var(--accent);
+  color: var(--cyan);
   text-decoration: none;
 }
 
 button {
   font: inherit;
   cursor: pointer;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--ink);
-  padding: 6px 12px;
+  padding: 7px 13px;
+  font-weight: 600;
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 button:hover:not(:disabled) {
+  background: var(--hover);
   border-color: var(--ink-muted);
 }
+button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
 }
 button.primary {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--cyan), var(--violet));
   border-color: transparent;
-  font-weight: 600;
+  color: #06131a;
+  font-weight: 800;
+  box-shadow: var(--glow-cyan);
+}
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 button.buy {
-  background: rgba(12, 163, 12, 0.16);
-  border-color: rgba(12, 163, 12, 0.5);
-  color: #7ed87e;
+  background: var(--cyan-soft);
+  border-color: rgba(0, 229, 255, 0.45);
+  color: var(--cyan);
+}
+button.buy:hover:not(:disabled) {
+  background: rgba(0, 229, 255, 0.24);
+  box-shadow: var(--glow-cyan);
 }
 button.sell {
-  background: rgba(208, 59, 59, 0.14);
-  border-color: rgba(208, 59, 59, 0.5);
-  color: #f09a9a;
+  background: var(--pink-soft);
+  border-color: rgba(255, 46, 107, 0.45);
+  color: var(--pink);
+}
+button.sell:hover:not(:disabled) {
+  background: rgba(255, 46, 107, 0.24);
+  box-shadow: var(--glow-pink);
 }
 
 input,
 select {
   font: inherit;
-  background: var(--page);
+  background: var(--bg-2);
   color: var(--ink);
-  border: 1px solid var(--baseline);
-  border-radius: 6px;
-  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
 }
 input:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--cyan);
   outline-offset: -1px;
 }
 
@@ -87,7 +144,6 @@ input:focus {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-
 .up {
   color: var(--up);
 }
@@ -115,7 +171,7 @@ input:focus {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 18px;
   margin-bottom: 16px;
 }
@@ -179,7 +235,7 @@ input:focus {
   white-space: nowrap;
 }
 .me-badge strong {
-  color: var(--accent);
+  color: var(--cyan);
 }
 .sport-filters {
   display: flex;
@@ -194,9 +250,10 @@ input:focus {
   background: var(--surface);
 }
 .chip.active {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--cyan);
+  color: var(--cyan);
   font-weight: 700;
+  box-shadow: var(--glow-cyan);
 }
 .league-grid {
   display: grid;
@@ -213,7 +270,7 @@ input:focus {
   gap: 4px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 16px;
   height: auto;
 }
@@ -221,8 +278,8 @@ input:focus {
   border-color: var(--ink-muted);
 }
 .league-card.joined {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(57, 135, 229, 0.35) inset;
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan);
 }
 .league-card-top {
   display: flex;
@@ -253,7 +310,7 @@ input:focus {
   border-top: 1px solid var(--grid);
 }
 .joined-tag {
-  color: var(--accent);
+  color: var(--cyan);
   font-size: 12px;
   font-weight: 700;
   margin-top: 8px;
@@ -263,7 +320,8 @@ input:focus {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(2, 3, 6, 0.72);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -272,13 +330,14 @@ input:focus {
 }
 .modal {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
   padding: 22px;
   max-width: 420px;
   width: 100%;
   max-height: 80vh;
   overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 .modal h2 {
   margin: 6px 0 2px;
@@ -299,12 +358,12 @@ input:focus {
   cursor: pointer;
 }
 .clickable-row:hover td {
-  color: var(--accent);
+  color: var(--cyan);
 }
 
 /* ---- league layout ---- */
 .league {
-  max-width: 1240px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 16px 20px 60px;
 }
@@ -313,39 +372,43 @@ input:focus {
   align-items: center;
   gap: 18px;
   flex-wrap: wrap;
-  background: var(--surface);
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 12px 18px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .topbar .code {
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 2px;
-  color: var(--accent);
+  color: var(--cyan);
+  text-shadow: 0 0 14px rgba(0, 229, 255, 0.4);
 }
 .topbar .clock {
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  color: var(--gold);
 }
 .topbar .scoreline {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink-2);
 }
 .badge {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 20px;
   border: 1px solid var(--border);
   color: var(--ink-2);
 }
 .badge.live {
-  color: #7ed87e;
-  border-color: rgba(12, 163, 12, 0.5);
+  color: var(--green);
+  border-color: rgba(57, 255, 138, 0.5);
+  box-shadow: var(--glow-green);
+  animation: badge-live-pulse 2.2s ease-in-out infinite;
 }
 .badge.settled {
   color: var(--ink-muted);
@@ -354,32 +417,37 @@ input:focus {
   flex: 1;
 }
 .season-label {
-  font-weight: 700;
-  color: var(--ink-2);
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--gold-soft);
+  border: 1px solid rgba(255, 207, 73, 0.4);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 12px;
 }
 .conversion-badge {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
   border-radius: 20px;
   padding: 5px 12px;
   font-size: 12.5px;
-  font-weight: 600;
-  color: var(--accent);
+  font-weight: 700;
+  color: var(--cyan);
   white-space: nowrap;
 }
 .sub-header {
   font-size: 12.5px;
-  margin: -8px 0 16px;
+  margin: 0 0 16px;
   padding: 0 4px;
 }
 
 .columns {
   display: grid;
-  grid-template-columns: minmax(0, 2.1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 2.3fr) minmax(300px, 1fr);
   gap: 16px;
   align-items: start;
 }
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .columns {
     grid-template-columns: 1fr;
   }
@@ -388,90 +456,202 @@ input:focus {
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 14px 16px;
   margin-bottom: 16px;
 }
 .panel h2 {
   font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   color: var(--ink-muted);
   margin: 0 0 10px;
+  font-weight: 700;
 }
 
-/* ---- market table ---- */
-table.market {
-  width: 100%;
-  border-collapse: collapse;
-}
-table.market th {
-  text-align: left;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--ink-muted);
-  font-weight: 600;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--grid);
-}
-table.market td {
-  padding: 7px 8px;
-  border-bottom: 1px solid var(--grid);
-  vertical-align: middle;
-}
-table.market tr:last-child td {
-  border-bottom: none;
-}
-.player-name {
-  font-weight: 600;
-}
-.player-meta {
-  font-size: 11.5px;
-  color: var(--ink-muted);
-}
-.pos-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--ink-2);
-  margin-right: 6px;
-}
-.price {
-  font-size: 15px;
-  font-weight: 700;
-}
+/* ---- trade size selector ---- */
 .qty-row {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 .qty-row .label {
   font-size: 12px;
   color: var(--ink-muted);
 }
 .qty-row button.qty {
-  padding: 4px 10px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12.5px;
 }
 .qty-row button.qty.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 700;
+  border-color: var(--cyan);
+  color: var(--cyan);
+  font-weight: 800;
+  box-shadow: var(--glow-cyan);
 }
+
+/* ============================================================
+   Player stat cards — the core "cyber terminal" surface.
+   ============================================================ */
+.player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  gap: 12px;
+}
+
+.player-card {
+  position: relative;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pos-color, var(--ink-muted));
+  border-radius: var(--radius-sm);
+  padding: 12px 13px;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.player-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.player-card.has-position {
+  background: var(--surface-3);
+}
+.player-card.settled {
+  opacity: 0.85;
+}
+
+.player-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.player-card-name {
+  font-weight: 700;
+  font-size: 13.5px;
+  line-height: 1.2;
+}
+.player-card-team {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+.pos-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--pos-color, var(--ink-muted)) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pos-color, var(--ink-muted)) 45%, transparent);
+  color: var(--pos-color, var(--ink-2));
+}
+
+.player-card-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.player-card-price {
+  font-size: 21px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  border-radius: 5px;
+  padding: 0 3px;
+  margin: 0 -3px;
+}
+.player-card-delta {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* price pulse — a brief glowing flash on the number itself when a trade
+   or match event moves it, direction-coded so color never stands alone
+   (the delta chip + glyph carry the same signal). */
+.player-card-price.pulse-up {
+  animation: price-pulse-up 0.7s ease-out;
+}
+.player-card-price.pulse-down {
+  animation: price-pulse-down 0.7s ease-out;
+}
+@keyframes price-pulse-up {
+  0% {
+    color: var(--green);
+    background: var(--green-soft);
+    box-shadow: var(--glow-green);
+  }
+  100% {
+    color: inherit;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+@keyframes price-pulse-down {
+  0% {
+    color: var(--pink);
+    background: var(--pink-soft);
+    box-shadow: var(--glow-pink);
+  }
+  100% {
+    color: inherit;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+@keyframes badge-live-pulse {
+  0%,
+  100% {
+    box-shadow: var(--glow-green);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(57, 255, 138, 0.35), 0 0 6px rgba(57, 255, 138, 0.15);
+  }
+}
+
+.player-card-spark {
+  margin: 4px -2px 8px;
+}
+
+.player-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.your-shares {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.your-shares.has-long {
+  color: var(--green);
+}
+.your-shares.has-short {
+  color: var(--pink);
+}
+.settled-price {
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 .trade-buttons {
   display: flex;
   gap: 6px;
-  justify-content: flex-end;
 }
 .trade-buttons button {
-  padding: 4px 10px;
+  padding: 6px 14px;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  border-radius: 7px;
 }
 
 /* ---- ticker ---- */
@@ -485,21 +665,84 @@ table.market tr:last-child td {
 .ticker .entry {
   font-size: 13px;
   color: var(--ink-2);
-  padding: 6px 9px;
-  border-left: 2px solid var(--baseline);
+  padding: 7px 10px;
+  border-left: 2px solid var(--border-strong);
   background: var(--surface-2);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 8px 8px 0;
 }
 .ticker .entry.goal {
-  border-left-color: var(--up);
+  border-left-color: var(--green);
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 700;
+  background: var(--green-soft);
 }
 .ticker .entry.bad {
-  border-left-color: var(--down);
+  border-left-color: var(--pink);
+}
+.ticker .entry.enter {
+  animation: ticker-enter 0.35s ease-out;
+}
+@keyframes ticker-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* ---- leaderboard / portfolio ---- */
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.leader-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+}
+.leader-row:hover {
+  border-color: var(--border-strong);
+}
+.leader-row.me {
+  border-color: rgba(0, 229, 255, 0.4);
+  background: var(--cyan-soft);
+}
+.leader-rank {
+  width: 20px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.leader-rank.top1 {
+  color: var(--gold);
+}
+.leader-rank.top2 {
+  color: #c9d3e8;
+}
+.leader-rank.top3 {
+  color: #d99a5c;
+}
+.leader-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.leader-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 table.plain {
   width: 100%;
   border-collapse: collapse;
@@ -520,13 +763,9 @@ table.plain th {
 table.plain tr:last-child td {
   border-bottom: none;
 }
-tr.me td {
-  color: var(--accent);
-  font-weight: 600;
-}
 .big-value {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 26px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 .toast {
@@ -534,23 +773,25 @@ tr.me td {
   bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
   padding: 10px 18px;
   font-size: 13.5px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), var(--glow-cyan);
   z-index: 10;
 }
 .toast.error {
-  border-color: rgba(208, 59, 59, 0.6);
-  color: #f09a9a;
+  border-color: rgba(255, 46, 107, 0.6);
+  color: var(--pink);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), var(--glow-pink);
 }
 .fulltime-banner {
-  background: rgba(57, 135, 229, 0.12);
-  border: 1px solid rgba(57, 135, 229, 0.45);
-  border-radius: 10px;
+  background: linear-gradient(135deg, var(--gold-soft), var(--cyan-soft));
+  border: 1px solid rgba(255, 207, 73, 0.4);
+  border-radius: var(--radius);
   padding: 12px 18px;
   margin-bottom: 16px;
-  font-weight: 600;
+  font-weight: 700;
 }
