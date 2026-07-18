@@ -13,6 +13,25 @@ export interface PublicPlayerDTO {
   position: FieldPosition;
   b: number;
   initialQ?: number;
+  /** Real shirt number from the verified fixture, when recorded. */
+  shirt?: number | null;
+  /** True if the player was in the starting XI. */
+  started?: boolean;
+}
+
+/** Identifies the real completed fixture a league replays — metadata and
+ *  provenance only; events and outcome stay server-side until they happen. */
+export interface FixtureMetaDTO {
+  fixtureId: string;
+  competition: string;
+  stage: string;
+  dateUtc: string;
+  venue: string | null;
+  city: string | null;
+  homeTeam: string;
+  awayTeam: string;
+  /** URLs of the sources the committed snapshot was verified against. */
+  sources: string[];
 }
 
 export interface MatchEventDTO {
@@ -24,6 +43,8 @@ export interface MatchEventDTO {
   points: number;
   signalShares: number;
   commentary: string;
+  /** True on signals emitted by the correlation arbitrageur agent. */
+  isArbitrageur?: true;
 }
 
 export interface LeaderboardEntryDTO {
@@ -56,8 +77,10 @@ export interface LeagueStateDTO {
   seasonLabel: string;
   /** e.g. "Jun 11 – Jul 19, 2026" */
   windowLabel: string;
-  /** e.g. "Final · FC Falcon vs United Wolves" */
+  /** e.g. "Round of 16 · Argentina vs Egypt" */
   matchLabel: string;
+  /** the verified real fixture this league replays */
+  fixture: FixtureMetaDTO;
   host: string;
   users: string[];
   players: PublicPlayerDTO[];
