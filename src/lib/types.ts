@@ -40,6 +40,8 @@ export interface PortfolioDTO {
   cash: number;
   /** playerId -> net shares (negative = short) */
   positions: Record<string, number>;
+  /** playerId -> liquidation value of that position ($), i.e. what closing it now would net */
+  positionValues: Record<string, number>;
   value: number;
 }
 
