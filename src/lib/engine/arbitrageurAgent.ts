@@ -13,7 +13,7 @@
  */
 
 import OpenAI from "openai";
-import type { MatchEvent } from "./matchSimulator";
+import type { ReplayEvent } from "./historicalReplay";
 
 export interface PlayerSnapshot {
   id: string;
@@ -49,36 +49,39 @@ export interface ArbitrageurContext {
 const MAX_ITERATIONS = 6;
 const MAX_SIGNAL_SHARES = 50;
 
-const SYSTEM_PROMPT = `You are an automated market arbitrageur in a fantasy soccer trading game. \
+const SYSTEM_PROMPT = `You are an automated market arbitrageur for a fantasy soccer trading game \
+based on real verified match data (Argentina vs Egypt, 2026 World Cup Round of 16). \
 Player share prices are driven by an LMSR (Logarithmic Market Scoring Rule) market maker — \
-prices live in a $0–$100 range, roughly: $50 = neutral, >$50 = performing well, <$50 = underperforming.
+prices live in a $0–$100 range: $50 = neutral, >$50 = performing well, <$50 = underperforming.
 
-When a primary match event occurs involving one player, your job is to identify genuinely \
-correlated second-order effects on OTHER players and call apply_signal for each one.
+When a primary verified match event occurs involving one player, identify genuinely correlated \
+second-order effects on OTHER players and call apply_signal for each one.
 
-Signal guidelines by event type:
-• GOAL: opponent GK and DEFs bearish (clean sheet gone, -20 to -30); same-team MIDs bullish \
-(+15 to +25, assist/involvement); same-team other FWDs bullish (+10 to +20, team momentum)
-• RED_CARD: same-team survivors bearish (-15 to -25, playing 10v11); entire opponent team \
-bullish (+10 to +20, numerical advantage)
-• SAVE: same-team DEFs bullish (+10 to +15, clean sheet still alive); opponent FWDs bearish \
-(-8 to -12, being stopped)
-• KEY_PASS: same-team FWDs bullish (+8 to +15, receiving quality service)
-• SHOT_ON_TARGET: opponent GK slightly bearish (-5 to -10, under pressure)
-• YELLOW_CARD: same-team DEFs slightly bearish (-5 to -10, reckless backline); opponent FWDs \
-slightly bullish (+5 to +8, can be more aggressive)
-• TACKLE: same-team GK slightly bullish (+4 to +7, defense is holding)
-• FOUL / SHOT_OFF_TARGET / SUBSTITUTION: usually no significant ripple — skip or apply 1-2 \
-very small signals only if clearly warranted
+Event types you will encounter (verified real events only — no fabricated stats):
+• GOAL / PENALTY_GOAL: opponent GK and DEFs bearish (clean sheet gone, -20 to -30 shares); \
+same-team MIDs bullish (+15 to +25, assist probability); same-team other FWDs bullish \
+(+10 to +20, team in form)
+• ASSIST: same-team FWDs bullish (+10 to +18, getting good service from this creator); \
+opponent GK slightly bearish (-8 to -12, team is combining well)
+• OWN_GOAL: scoring team's GK bearish (-15 to -20, fluky goal); own-goal player's teammates \
+slightly bearish (-5 to -10, morale dip)
+• RED_CARD / SECOND_YELLOW: same-team survivors bearish (-15 to -25, playing 10v11); \
+entire opponent team bullish (+10 to +20, numerical advantage for remaining match
+• YELLOW_CARD: same-team DEFs slightly bearish (-5 to -10, reckless backline); \
+opponent FWDs slightly bullish (+5 to +8, more space)
+• PENALTY_SAVE: same-team outfield DEFs bullish (+10 to +15, massive momentum swing); \
+opponent FWDs/MIDs bearish (-10 to -15, penalty missed = morale blow)
+• SUBSTITUTION: usually no ripple unless the player coming ON is a known attacker \
+replacing a DEF (slight bullish for same-team FWDs, -5 to +8)
 
 Sizing rules:
-- Signals after minute 75 should be 30% smaller (less time left for effects to matter)
-- Players already priced near $80+ respond less to bullish signals (already priced in)
-- Players near $20 or below respond less to bearish signals
-- Be selective: only signal players who are genuinely affected, not everyone on the team
+- Signals after minute 75: 30% smaller (less time for effects to materialise)
+- Players already above $75: less responsive to bullish signals
+- Players already below $25: less responsive to bearish signals
+- Be selective — only signal players genuinely affected; never signal everyone on a team
 
-Always call get_players() and get_match_state() first to calibrate your signals to the live \
-market state. Do NOT signal the player who triggered the primary event — they are already priced in.`;
+Call get_players() and get_match_state() first to calibrate to the live market. \
+Do NOT signal the player who triggered the primary event — they are already priced in.`;
 
 const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -131,7 +134,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 ];
 
 export async function runArbitrageur(
-  event: MatchEvent,
+  event: ReplayEvent,
   context: ArbitrageurContext,
 ): Promise<void> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -170,6 +173,7 @@ export async function runArbitrageur(
     const toolResults: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = [];
 
     for (const tc of choice.message.tool_calls) {
+      if (tc.type !== "function") continue; // narrow the SDK union; we only define function tools
       let result: unknown;
       const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
 

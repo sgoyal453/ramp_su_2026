@@ -65,6 +65,7 @@ function handleMessage(conn: Connection, message: ClientMessage): void {
         },
         onMinute: () => broadcastState(league),
         onFullTime: () => broadcastState(league),
+        onArbitrageurSignal: () => broadcastState(league),
       });
       broadcastState(league);
       return;

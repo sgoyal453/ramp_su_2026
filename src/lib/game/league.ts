@@ -14,6 +14,7 @@
 
 import { createLeagueMarkets, type PlayerMarket } from "../engine/playerMarket";
 import { HistoricalMatchReplay, type ReplayEvent, type ReplayFullTime } from "../engine/historicalReplay";
+import { runArbitrageur } from "../engine/arbitrageurAgent";
 import { getFixture } from "../fixtures/load";
 import type { FixtureSnapshot } from "../fixtures/types";
 import type { LeagueStateDTO, LeagueStatus, MatchEventDTO, LeaderboardEntryDTO, FixtureMetaDTO } from "../types";
@@ -36,6 +37,8 @@ export interface LeagueHooks {
   onEvent?: (event: ReplayEvent) => void;
   onMinute?: (minute: number) => void;
   onFullTime?: (result: ReplayFullTime) => void;
+  /** Called each time the arbitrageur agent applies a correlated signal. */
+  onArbitrageurSignal?: () => void;
 }
 
 export interface LeagueOptions {
@@ -198,6 +201,55 @@ export class League {
       if (this.ticker.length > TICKER_LIMIT) this.ticker.pop();
       this.score = Object.fromEntries(this.sim!.goals);
       hooks.onEvent?.(event);
+
+      // Fire the arbitrageur agent async — never blocks the match clock.
+      // Skipped silently when OPENAI_API_KEY is absent or the market is settled.
+      runArbitrageur(event, {
+        getPlayers: () =>
+          this.fixture.players.map((p) => ({
+            id: p.id,
+            name: p.name,
+            team: p.team,
+            position: p.position,
+            currentPrice: this.markets.get(p.id)!.price(),
+          })),
+        getMatchState: () => ({
+          minute: this.minute,
+          score: { ...this.score },
+          recentEvents: this.ticker
+            .filter((e) => !e.isArbitrageur)
+            .slice(0, 5)
+            .map((e) => ({
+              minute: e.minute,
+              type: e.type,
+              playerName: e.playerName,
+              team: e.team,
+              commentary: e.commentary,
+            })),
+        }),
+        applySignal: (playerId, shares, reason) => {
+          if (playerId === event.playerId) return false;
+          const market = this.markets.get(playerId);
+          if (!market || market.settled) return false;
+          market.applySignal(shares);
+          const player = this.fixture.players.find((p) => p.id === playerId);
+          const arbEvent: MatchEventDTO = {
+            minute: this.minute,
+            type: "ARB_SIGNAL",
+            playerId,
+            playerName: player?.name ?? playerId,
+            team: player?.team ?? "",
+            points: 0,
+            signalShares: shares,
+            commentary: `[Arb] ${reason}`,
+            isArbitrageur: true,
+          };
+          this.ticker.unshift(arbEvent);
+          if (this.ticker.length > TICKER_LIMIT) this.ticker.pop();
+          hooks.onArbitrageurSignal?.();
+          return true;
+        },
+      }).catch((err) => console.error("[arbitrageur]", err));
     });
     this.sim.on("minute", ({ minute }: { minute: number }) => {
       this.minute = minute;
