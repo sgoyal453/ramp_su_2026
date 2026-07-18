@@ -340,6 +340,12 @@ function PortfolioModal({
 }
 
 function TickerEntry({ event }: { event: MatchEventDTO }) {
-  const cls = event.type === "GOAL" ? "goal" : event.signalShares < 0 ? "bad" : "";
+  const cls = event.isArbitrageur
+    ? "arb"
+    : event.type === "GOAL" || event.type === "PENALTY_GOAL"
+    ? "goal"
+    : event.signalShares < 0
+    ? "bad"
+    : "";
   return <div className={`entry ${cls}`}>{event.commentary}</div>;
 }

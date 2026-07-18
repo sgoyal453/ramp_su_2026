@@ -5,8 +5,13 @@ import { League, MAX_USERS } from "./league";
 
 function newLeague() {
   // Tiny real duration; tests drive the sim manually via runToCompletion.
-  return new League({ code: "TEST01", host: "alice", seed: 7, matchRealMinutes: 0.01 });
+  return new League({ code: "TEST01", host: "alice", matchRealMinutes: 0.01 });
 }
+
+// Real player IDs from the committed Argentina vs Egypt fixture.
+const ARG_FWD = "arg-julian-alvarez";
+const ARG_MID = "arg-alexis-mac-allister";
+const EGY_FWD = "egy-mohamed-salah";
 
 test("host joins on creation; joins are idempotent; league caps at MAX_USERS", () => {
   const league = newLeague();
@@ -21,33 +26,33 @@ test("host joins on creation; joins are idempotent; league caps at MAX_USERS", (
 test("buy debits cash by the LMSR cost and records the position", () => {
   const league = newLeague();
   const before = league.users.get("alice")!.cash;
-  const fill = league.trade("alice", "fal-fwd-9", 100);
+  const fill = league.trade("alice", ARG_FWD, 100);
   assert.ok(fill.cost > 0);
   assert.equal(league.users.get("alice")!.cash, before - fill.cost);
-  assert.equal(league.users.get("alice")!.positions.get("fal-fwd-9"), 100);
+  assert.equal(league.users.get("alice")!.positions.get(ARG_FWD), 100);
   // Everyone in the league sees the moved price.
-  assert.equal(league.toDTO("bob").prices["fal-fwd-9"], league.markets.get("fal-fwd-9")!.price());
+  assert.equal(league.toDTO("bob").prices[ARG_FWD], league.markets.get(ARG_FWD)!.price());
 });
 
 test("cannot spend more cash than you have", () => {
   const league = newLeague();
-  assert.throws(() => league.trade("alice", "fal-fwd-9", 10_000), /insufficient cash|max/);
+  assert.throws(() => league.trade("alice", ARG_FWD, 10_000), /insufficient cash|max/);
 });
 
 test("shorts require full collateral within cash", () => {
   const league = newLeague();
   // startingCash 100k, priceScale 100 -> absolute max ~1000 short shares.
-  assert.throws(() => league.trade("alice", "wol-fwd-10", -2000), /short exposure cap/);
-  const fill = league.trade("alice", "wol-fwd-10", -500);
+  assert.throws(() => league.trade("alice", EGY_FWD, -2000), /short exposure cap/);
+  const fill = league.trade("alice", EGY_FWD, -500);
   assert.ok(fill.cost < 0, "short pays the trader now");
-  assert.equal(league.users.get("alice")!.positions.get("wol-fwd-10"), -500);
+  assert.equal(league.users.get("alice")!.positions.get(EGY_FWD), -500);
 });
 
 test("selling an owned position back to zero clears it", () => {
   const league = newLeague();
-  league.trade("alice", "fal-mid-6", 50);
-  league.trade("alice", "fal-mid-6", -50);
-  assert.equal(league.users.get("alice")!.positions.has("fal-mid-6"), false);
+  league.trade("alice", ARG_MID, 50);
+  league.trade("alice", ARG_MID, -50);
+  assert.equal(league.users.get("alice")!.positions.has(ARG_MID), false);
   // Round trip with no market movement in between is cash neutral.
   assert.ok(Math.abs(league.users.get("alice")!.cash - league.startingCash) < 1e-6);
 });
@@ -68,15 +73,16 @@ test("full match: history sampled per minute, settlement converts positions to c
   const events: number[] = [];
   league.start("alice", { onMinute: (m) => events.push(m) });
   league.sim!.stop(); // drive manually instead of on the timer
-  league.trade("alice", "wol-fwd-10", 200); // long the star
-  league.trade("bob", "wol-fwd-10", -200); // bob shorts him
+  league.trade("alice", EGY_FWD, 200); // long the star
+  league.trade("bob", EGY_FWD, -200); // bob shorts him
   league.sim!.runToCompletion();
 
+  const matchMins = league.sim!.matchMinutes;
   assert.equal(league.status, "settled");
-  assert.equal(events.length, 90);
+  assert.equal(events.length, matchMins);
   assert.ok(league.settlements);
-  for (const p of league.players) {
-    assert.equal(league.history[p.id].length, 92); // kickoff + 90 minutes + settlement
+  for (const p of league.fixture.players) {
+    assert.equal(league.history[p.id].length, matchMins + 2); // kickoff + N minutes + settlement
   }
   // Positions are gone; all value is cash; leaderboard is consistent.
   for (const user of league.users.values()) assert.equal(user.positions.size, 0);
@@ -88,16 +94,15 @@ test("full match: history sampled per minute, settlement converts positions to c
   // price movement between the two trades; both must at least be finite.
   assert.ok(board.every((e) => Number.isFinite(e.cash)));
   // Trading after settlement is rejected.
-  assert.throws(() => league.trade("alice", "wol-fwd-10", 1), /trading closed/);
+  assert.throws(() => league.trade("alice", EGY_FWD, 1), /trading closed/);
 });
 
-test("toDTO hides skill, personalizes portfolio, and serializes cleanly", () => {
+test("toDTO personalizes portfolio and serializes cleanly", () => {
   const league = newLeague();
-  league.trade("alice", "fal-fwd-9", 10);
+  league.trade("alice", ARG_FWD, 10);
   const dto = league.toDTO("alice");
-  assert.ok(dto.players.every((p) => !("skill" in p)));
   assert.equal(dto.you?.username, "alice");
-  assert.equal(dto.you?.positions["fal-fwd-9"], 10);
+  assert.equal(dto.you?.positions[ARG_FWD], 10);
   assert.equal(league.toDTO(null).you, null);
   JSON.stringify(dto); // must be JSON-safe for the wire
 });
